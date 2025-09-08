@@ -69,6 +69,7 @@ class YomiageKun {
             'icon_url' => YOMIAGEKUN_PLUGIN_URL . 'assets/icon.png',
             'icon_position' => 'bottom-right',
             'summary_accuracy' => 'simple',
+            'enabled_categories' => array(),
             'enabled' => true
         );
         
@@ -80,12 +81,14 @@ class YomiageKun {
     }
     
     public function add_admin_menu() {
-        add_options_page(
+        add_menu_page(
             '読み上げくん設定',
             '読み上げくん',
             'manage_options',
             'yomiagekun',
-            array($this, 'admin_page')
+            array($this, 'admin_page'),
+            'dashicons-controls-volumeon',
+            30
         );
     }
     
@@ -143,6 +146,14 @@ class YomiageKun {
             'icon_position',
             'アイコンの表示位置',
             array($this, 'icon_position_field'),
+            'yomiagekun',
+            'yomiagekun_main'
+        );
+        
+        add_settings_field(
+            'enabled_categories',
+            '表示するカテゴリー',
+            array($this, 'enabled_categories_field'),
             'yomiagekun',
             'yomiagekun_main'
         );
@@ -241,6 +252,34 @@ class YomiageKun {
         <?php
     }
     
+    public function enabled_categories_field() {
+        $options = get_option('yomiagekun_options');
+        $selected_categories = isset($options['enabled_categories']) ? $options['enabled_categories'] : array();
+        
+        // カテゴリー一覧を取得
+        $categories = get_categories(array(
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC'
+        ));
+        
+        if (empty($categories)) {
+            echo '<p>カテゴリーが登録されていません。</p>';
+            return;
+        }
+        
+        echo '<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">';
+        foreach ($categories as $category) {
+            $checked = in_array($category->term_id, $selected_categories) ? 'checked' : '';
+            echo '<label style="display: block; margin-bottom: 5px;">';
+            echo '<input type="checkbox" name="yomiagekun_options[enabled_categories][]" value="' . esc_attr($category->term_id) . '" ' . $checked . ' /> ';
+            echo esc_html($category->name) . ' (' . $category->count . '件)';
+            echo '</label>';
+        }
+        echo '</div>';
+        echo '<p class="description">読み上げくんを表示するカテゴリーを選択してください。何も選択しない場合は全てのカテゴリーで表示されます。</p>';
+    }
+    
     public function enabled_field() {
         $options = get_option('yomiagekun_options');
         $value = isset($options['enabled']) ? $options['enabled'] : true;
@@ -281,6 +320,12 @@ class YomiageKun {
             error_log('読み上げくん: 要約精度設定: ' . $output['summary_accuracy']);
         }
         
+        if (isset($input['enabled_categories'])) {
+            $output['enabled_categories'] = array_map('intval', $input['enabled_categories']);
+        } else {
+            $output['enabled_categories'] = array();
+        }
+        
         if (isset($input['enabled'])) {
             $output['enabled'] = (bool) $input['enabled'];
         } else {
@@ -292,9 +337,15 @@ class YomiageKun {
             $upload = wp_handle_upload($_FILES['yomiagekun_icon'], array('test_form' => false));
             if (!isset($upload['error'])) {
                 $output['icon_url'] = $upload['url'];
+            } else {
+                // アップロードエラーの場合は既存のアイコンを保持
+                $existing_options = get_option('yomiagekun_options');
+                $output['icon_url'] = isset($existing_options['icon_url']) ? $existing_options['icon_url'] : YOMIAGEKUN_PLUGIN_URL . 'assets/icon.png';
             }
         } else {
-            $output['icon_url'] = isset($input['icon_url']) ? $input['icon_url'] : YOMIAGEKUN_PLUGIN_URL . 'assets/icon.png';
+            // 新しいファイルがアップロードされていない場合は既存のアイコンを保持
+            $existing_options = get_option('yomiagekun_options');
+            $output['icon_url'] = isset($existing_options['icon_url']) ? $existing_options['icon_url'] : YOMIAGEKUN_PLUGIN_URL . 'assets/icon.png';
         }
         
         // デバッグ用：保存される設定をログ出力
@@ -313,6 +364,24 @@ class YomiageKun {
         // 単一記事ページでのみ表示
         if (!is_single()) {
             return;
+        }
+        
+        // カテゴリー制限チェック
+        $enabled_categories = isset($options['enabled_categories']) ? $options['enabled_categories'] : array();
+        if (!empty($enabled_categories)) {
+            $post_categories = wp_get_post_categories(get_the_ID());
+            $has_enabled_category = false;
+            
+            foreach ($post_categories as $category_id) {
+                if (in_array($category_id, $enabled_categories)) {
+                    $has_enabled_category = true;
+                    break;
+                }
+            }
+            
+            if (!$has_enabled_category) {
+                return;
+            }
         }
         
         wp_enqueue_script('yomiagekun', YOMIAGEKUN_PLUGIN_URL . 'assets/yomiagekun.js', array('jquery'), YOMIAGEKUN_VERSION, true);
