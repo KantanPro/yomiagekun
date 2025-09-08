@@ -276,8 +276,9 @@
                 $icon.find('.yomiagekun-tooltip').text('長いテキストを読み上げ中...');
             }
             
-            // 完全モードで長いテキストの場合は分割して読み上げ
-            if (options.summary_accuracy === 'full' && text.length > 2000) {
+            // 長いテキストの場合は分割して読み上げ（完全モードまたは詳細モード）
+            if ((options.summary_accuracy === 'full' && text.length > 2000) || 
+                (options.summary_accuracy === 'detailed' && text.length > 1500)) {
                 this.speakLongText(text, $icon, options);
                 return;
             }
@@ -406,7 +407,9 @@
         
         speakLongText: function(text, $icon, options) {
             var self = this;
-            this.currentChunks = this.splitTextIntoChunks(text, 2000);
+            // チャンクサイズを調整（詳細モードでは少し小さく）
+            var chunkSize = options.summary_accuracy === 'detailed' ? 1500 : 2000;
+            this.currentChunks = this.splitTextIntoChunks(text, chunkSize);
             this.currentChunkIndex = 0;
             
             function speakNextChunk() {
@@ -533,17 +536,26 @@
                 var sentence = sentences[i].trim();
                 if (sentence.length === 0) continue;
                 
-                if (currentChunk.length + sentence.length > chunkSize && currentChunk.length > 0) {
+                // 現在のチャンクに文を追加した場合の長さを計算
+                var potentialLength = currentChunk.length + (currentChunk.length > 0 ? '。' : '') + sentence;
+                
+                if (potentialLength > chunkSize && currentChunk.length > 0) {
+                    // 現在のチャンクを保存して新しいチャンクを開始
                     chunks.push(currentChunk.trim());
                     currentChunk = sentence;
                 } else {
+                    // 現在のチャンクに文を追加
                     currentChunk += (currentChunk.length > 0 ? '。' : '') + sentence;
                 }
             }
             
+            // 最後のチャンクを追加
             if (currentChunk.trim().length > 0) {
                 chunks.push(currentChunk.trim());
             }
+            
+            // デバッグ用：チャンク数をログ出力
+            console.log('読み上げくん: テキストを' + chunks.length + '個のチャンクに分割しました');
             
             return chunks;
         },
