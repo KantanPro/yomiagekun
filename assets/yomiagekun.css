@@ -2,8 +2,6 @@
 
 .yomiagekun-floating-icon {
     position: fixed;
-    bottom: 20px;
-    right: 20px;
     width: 64px;
     height: 64px;
     background: #4CAF50;
@@ -18,9 +16,41 @@
     border: 3px solid #fff;
 }
 
+/* 位置設定: 右上 */
+.yomiagekun-floating-icon.position-top-right {
+    top: 80px;
+    right: 20px;
+}
+
+/* 位置設定: 左上 */
+.yomiagekun-floating-icon.position-top-left {
+    top: 80px;
+    left: 20px;
+}
+
+/* 位置設定: 中右 */
+.yomiagekun-floating-icon.position-middle-right {
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+}
+
+/* 位置設定: 中左 */
+.yomiagekun-floating-icon.position-middle-left {
+    top: 50%;
+    left: 20px;
+    transform: translateY(-50%);
+}
+
+/* 位置設定: 右下 */
+.yomiagekun-floating-icon.position-bottom-right {
+    bottom: 20px;
+    right: 20px;
+}
+
 /* 位置設定: 左下 */
 .yomiagekun-floating-icon.position-bottom-left {
-    right: auto;
+    bottom: 20px;
     left: 20px;
 }
 
@@ -89,8 +119,6 @@
 /* ツールチップ */
 .yomiagekun-tooltip {
     position: absolute;
-    bottom: 70px;
-    right: 0;
     background: #333;
     color: #fff;
     padding: 8px 12px;
@@ -103,7 +131,30 @@
     z-index: 10000;
 }
 
-.yomiagekun-tooltip::after {
+/* 右上のツールチップ（下に表示） */
+.yomiagekun-floating-icon.position-top-right .yomiagekun-tooltip {
+    top: 70px;
+    right: 0;
+}
+
+.yomiagekun-floating-icon.position-top-right .yomiagekun-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    right: 20px;
+    border: 5px solid transparent;
+    border-bottom-color: #333;
+}
+
+/* 中右・右下のツールチップ */
+.yomiagekun-floating-icon.position-middle-right .yomiagekun-tooltip,
+.yomiagekun-floating-icon.position-bottom-right .yomiagekun-tooltip {
+    bottom: 70px;
+    right: 0;
+}
+
+.yomiagekun-floating-icon.position-middle-right .yomiagekun-tooltip::after,
+.yomiagekun-floating-icon.position-bottom-right .yomiagekun-tooltip::after {
     content: '';
     position: absolute;
     top: 100%;
@@ -112,11 +163,41 @@
     border-top-color: #333;
 }
 
+/* 左上のツールチップ（下に表示） */
+.yomiagekun-floating-icon.position-top-left .yomiagekun-tooltip {
+    top: 70px;
+    left: 0;
+}
+
+.yomiagekun-floating-icon.position-top-left .yomiagekun-tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 20px;
+    border: 5px solid transparent;
+    border-bottom-color: #333;
+}
+
+/* 中左・左下のツールチップ */
+.yomiagekun-floating-icon.position-middle-left .yomiagekun-tooltip,
+.yomiagekun-floating-icon.position-bottom-left .yomiagekun-tooltip {
+    bottom: 70px;
+    left: 0;
+}
+
+.yomiagekun-floating-icon.position-middle-left .yomiagekun-tooltip::after,
+.yomiagekun-floating-icon.position-bottom-left .yomiagekun-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 20px;
+    border: 5px solid transparent;
+    border-top-color: #333;
+}
+
 /* 精度選択メニュー */
 .yomiagekun-accuracy-menu {
     position: absolute;
-    bottom: 70px;
-    right: 0;
     background: #fff;
     border: 1px solid #ddd;
     border-radius: 8px;
@@ -129,11 +210,66 @@
     overflow: hidden;
 }
 
-.yomiagekun-accuracy-menu::after {
+/* 右上の精度選択メニュー（下に表示） */
+.yomiagekun-floating-icon.position-top-right .yomiagekun-accuracy-menu {
+    top: 70px;
+    right: 0;
+}
+
+.yomiagekun-floating-icon.position-top-right .yomiagekun-accuracy-menu::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    right: 20px;
+    border: 5px solid transparent;
+    border-bottom-color: #fff;
+}
+
+/* 中右・右下の精度選択メニュー */
+.yomiagekun-floating-icon.position-middle-right .yomiagekun-accuracy-menu,
+.yomiagekun-floating-icon.position-bottom-right .yomiagekun-accuracy-menu {
+    bottom: 70px;
+    right: 0;
+}
+
+.yomiagekun-floating-icon.position-middle-right .yomiagekun-accuracy-menu::after,
+.yomiagekun-floating-icon.position-bottom-right .yomiagekun-accuracy-menu::after {
     content: '';
     position: absolute;
     top: 100%;
     right: 20px;
+    border: 5px solid transparent;
+    border-top-color: #fff;
+}
+
+/* 左上の精度選択メニュー（下に表示） */
+.yomiagekun-floating-icon.position-top-left .yomiagekun-accuracy-menu {
+    top: 70px;
+    left: 0;
+}
+
+.yomiagekun-floating-icon.position-top-left .yomiagekun-accuracy-menu::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 20px;
+    border: 5px solid transparent;
+    border-bottom-color: #fff;
+}
+
+/* 中左・左下の精度選択メニュー */
+.yomiagekun-floating-icon.position-middle-left .yomiagekun-accuracy-menu,
+.yomiagekun-floating-icon.position-bottom-left .yomiagekun-accuracy-menu {
+    bottom: 70px;
+    left: 0;
+}
+
+.yomiagekun-floating-icon.position-middle-left .yomiagekun-accuracy-menu::after,
+.yomiagekun-floating-icon.position-bottom-left .yomiagekun-accuracy-menu::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 20px;
     border: 5px solid transparent;
     border-top-color: #fff;
 }
@@ -176,31 +312,23 @@
     color: #666;
 }
 
-/* 左下位置のツールチップ */
-.yomiagekun-floating-icon.position-bottom-left .yomiagekun-tooltip {
-    right: auto;
-    left: 0;
-}
-
-.yomiagekun-floating-icon.position-bottom-left .yomiagekun-tooltip::after {
-    right: auto;
-    left: 20px;
-}
-
-/* 左下位置の精度選択メニュー */
-.yomiagekun-floating-icon.position-bottom-left .yomiagekun-accuracy-menu {
-    right: auto;
-    left: 0;
-}
-
-.yomiagekun-floating-icon.position-bottom-left .yomiagekun-accuracy-menu::after {
-    right: auto;
-    left: 20px;
-}
 
 .yomiagekun-floating-icon:hover .yomiagekun-tooltip {
     opacity: 1;
     visibility: visible;
+}
+
+/* 初期表示時のみツールチップを表示 */
+.yomiagekun-floating-icon .yomiagekun-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* 読み上げ中はツールチップを非表示 */
+.yomiagekun-floating-icon.reading .yomiagekun-tooltip,
+.yomiagekun-floating-icon.paused .yomiagekun-tooltip {
+    opacity: 0;
+    visibility: hidden;
 }
 
 /* レスポンシブ対応 */
@@ -208,12 +336,42 @@
     .yomiagekun-floating-icon {
         width: 56px;
         height: 56px;
+    }
+    
+    /* 右上・左上 */
+    .yomiagekun-floating-icon.position-top-right,
+    .yomiagekun-floating-icon.position-top-left {
+        top: 60px;
+    }
+    
+    .yomiagekun-floating-icon.position-top-right {
+        right: 15px;
+    }
+    
+    .yomiagekun-floating-icon.position-top-left {
+        left: 15px;
+    }
+    
+    /* 中右・中左 */
+    .yomiagekun-floating-icon.position-middle-right {
+        right: 15px;
+    }
+    
+    .yomiagekun-floating-icon.position-middle-left {
+        left: 15px;
+    }
+    
+    /* 右下・左下 */
+    .yomiagekun-floating-icon.position-bottom-right,
+    .yomiagekun-floating-icon.position-bottom-left {
         bottom: 15px;
+    }
+    
+    .yomiagekun-floating-icon.position-bottom-right {
         right: 15px;
     }
     
     .yomiagekun-floating-icon.position-bottom-left {
-        right: auto;
         left: 15px;
     }
     

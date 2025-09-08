@@ -15,8 +15,11 @@
         showAccuracyMenu: false,
         
         init: function() {
+            console.log('読み上げくん: プラグイン初期化中...');
+            console.log('読み上げくん: 設定オプション:', yomiagekun_ajax.options);
             this.createFloatingIcon();
             this.bindEvents();
+            console.log('読み上げくん: プラグイン初期化完了');
         },
         
         createFloatingIcon: function() {
@@ -31,8 +34,26 @@
             
             // 位置設定に基づいてクラスを追加
             var positionClass = '';
-            if (options.icon_position === 'bottom-left') {
-                positionClass = ' position-bottom-left';
+            switch (options.icon_position) {
+                case 'top-right':
+                    positionClass = ' position-top-right';
+                    break;
+                case 'top-left':
+                    positionClass = ' position-top-left';
+                    break;
+                case 'middle-right':
+                    positionClass = ' position-middle-right';
+                    break;
+                case 'middle-left':
+                    positionClass = ' position-middle-left';
+                    break;
+                case 'bottom-left':
+                    positionClass = ' position-bottom-left';
+                    break;
+                case 'bottom-right':
+                default:
+                    positionClass = ' position-bottom-right';
+                    break;
             }
             
             var accuracyMenu = '<div class="yomiagekun-accuracy-menu">' +
@@ -52,7 +73,7 @@
             
             var floatingIcon = $('<div class="yomiagekun-floating-icon' + positionClass + '" title="読み上げくん">' +
                 iconHtml +
-                '<div class="yomiagekun-tooltip">クリックして読み上げ</div>' +
+                '<div class="yomiagekun-tooltip">読み上げましょうか？</div>' +
                 accuracyMenu +
                 '</div>');
             
@@ -172,7 +193,7 @@
         
         startReading: function($icon) {
             $icon.removeClass('completed error paused').addClass('reading');
-            $icon.find('.yomiagekun-tooltip').text('読み上げ中...');
+            $icon.find('.yomiagekun-tooltip').hide();
         },
         
         pauseReading: function($icon) {
@@ -180,7 +201,7 @@
                 speechSynthesis.pause();
                 this.isPaused = true;
                 $icon.removeClass('reading').addClass('paused');
-                $icon.find('.yomiagekun-tooltip').text('一時停止中... クリックで再開');
+                $icon.find('.yomiagekun-tooltip').hide();
             }
         },
         
@@ -189,7 +210,7 @@
                 speechSynthesis.resume();
                 this.isPaused = false;
                 $icon.removeClass('paused').addClass('reading');
-                $icon.find('.yomiagekun-tooltip').text('読み上げ中...');
+                $icon.find('.yomiagekun-tooltip').hide();
             }
         },
         
@@ -201,7 +222,7 @@
             this.currentChunks = [];
             this.currentChunkIndex = 0;
             $icon.removeClass('reading paused completed error');
-            $icon.find('.yomiagekun-tooltip').text('クリックして読み上げ');
+            $icon.find('.yomiagekun-tooltip').text('読み上げましょうか？').show();
         },
         
         showAccuracyMenu: function($icon) {
@@ -214,12 +235,16 @@
         
         hideAccuracyMenu: function($icon) {
             $icon.find('.yomiagekun-accuracy-menu').removeClass('show');
-            $icon.find('.yomiagekun-tooltip').show();
+            if (!this.isPlaying) {
+                $icon.find('.yomiagekun-tooltip').show();
+            }
         },
         
         hideAllAccuracyMenus: function() {
             $('.yomiagekun-accuracy-menu').removeClass('show');
-            $('.yomiagekun-tooltip').show();
+            if (!this.isPlaying) {
+                $('.yomiagekun-tooltip').show();
+            }
         },
         
         selectAccuracy: function(accuracy, $icon) {
@@ -269,20 +294,89 @@
             var voices = speechSynthesis.getVoices();
             var selectedVoice = null;
             
-            if (options.voice_gender === 'male') {
-                selectedVoice = voices.find(function(voice) {
-                    return voice.lang.startsWith('ja') && voice.name.includes('Male');
-                });
+            // デバッグ用：利用可能な音声をコンソールに出力
+            console.log('読み上げくん: 利用可能な音声数:', voices.length);
+            console.log('読み上げくん: 利用可能な音声:', voices.map(function(v) { return v.name + ' (' + v.lang + ')'; }));
+            
+            // 日本語音声を優先して検索
+            var japaneseVoices = voices.filter(function(voice) {
+                return voice.lang.startsWith('ja');
+            });
+            
+            console.log('読み上げくん: 日本語音声数:', japaneseVoices.length);
+            console.log('読み上げくん: 日本語音声:', japaneseVoices.map(function(v) { return v.name; }));
+            console.log('読み上げくん: 選択された性別:', options.voice_gender);
+            
+            if (japaneseVoices.length > 0) {
+                if (options.voice_gender === 'male') {
+                    // 男性音声を検索（より多くのパターンを試す）
+                    selectedVoice = japaneseVoices.find(function(voice) {
+                        var name = voice.name.toLowerCase();
+                        return name.includes('male') || 
+                               name.includes('男') ||
+                               name.includes('masculine') ||
+                               name.includes('man') ||
+                               name.includes('男性');
+                    });
+                    
+                    // 男性音声が見つからない場合は、最初の日本語音声を使用
+                    if (!selectedVoice) {
+                        selectedVoice = japaneseVoices[0];
+                    }
+                } else {
+                    // 女性音声を検索（より多くのパターンを試す）
+                    selectedVoice = japaneseVoices.find(function(voice) {
+                        var name = voice.name.toLowerCase();
+                        return name.includes('female') || 
+                               name.includes('女') ||
+                               name.includes('feminine') ||
+                               name.includes('woman') ||
+                               name.includes('女性') ||
+                               name.includes('girl') ||
+                               name.includes('lady') ||
+                               name.includes('voice') ||
+                               name.includes('speech');
+                    });
+                    
+                    // 女性音声が見つからない場合は、音声のインデックスで判断
+                    if (!selectedVoice && japaneseVoices.length > 1) {
+                        // 通常、女性音声は男性音声より後に来ることが多い
+                        // 複数の音声がある場合、後半の音声を試す
+                        for (var i = Math.floor(japaneseVoices.length / 2); i < japaneseVoices.length; i++) {
+                            var voice = japaneseVoices[i];
+                            var name = voice.name.toLowerCase();
+                            // 男性を示すキーワードが含まれていない場合は女性音声と判断
+                            if (!name.includes('male') && 
+                                !name.includes('男') && 
+                                !name.includes('masculine') && 
+                                !name.includes('man') && 
+                                !name.includes('男性')) {
+                                selectedVoice = voice;
+                                break;
+                            }
+                        }
+                        
+                        // まだ見つからない場合は最後の音声を使用
+                        if (!selectedVoice) {
+                            selectedVoice = japaneseVoices[japaneseVoices.length - 1];
+                        }
+                    } else if (!selectedVoice && japaneseVoices.length === 1) {
+                        // 音声が1つしかない場合は、その音声を使用
+                        selectedVoice = japaneseVoices[0];
+                    }
+                }
             } else {
-                selectedVoice = voices.find(function(voice) {
-                    return voice.lang.startsWith('ja') && voice.name.includes('Female');
-                });
+                // 日本語音声がない場合は、利用可能な最初の音声を使用
+                selectedVoice = voices[0];
             }
             
-            // 日本語音声が見つからない場合はデフォルトを使用
-            if (!selectedVoice) {
-                selectedVoice = voices.find(function(voice) {
-                    return voice.lang.startsWith('ja');
+            console.log('読み上げくん: 選択された音声:', selectedVoice ? selectedVoice.name + ' (' + selectedVoice.lang + ')' : 'なし');
+            if (selectedVoice) {
+                console.log('読み上げくん: 音声の詳細:', {
+                    name: selectedVoice.name,
+                    lang: selectedVoice.lang,
+                    default: selectedVoice.default,
+                    localService: selectedVoice.localService
                 });
             }
             
@@ -335,20 +429,72 @@
                 var voices = speechSynthesis.getVoices();
                 var selectedVoice = null;
                 
-                if (options.voice_gender === 'male') {
-                    selectedVoice = voices.find(function(voice) {
-                        return voice.lang.startsWith('ja') && voice.name.includes('Male');
-                    });
-                } else {
-                    selectedVoice = voices.find(function(voice) {
-                        return voice.lang.startsWith('ja') && voice.name.includes('Female');
-                    });
-                }
+                // 日本語音声を優先して検索
+                var japaneseVoices = voices.filter(function(voice) {
+                    return voice.lang.startsWith('ja');
+                });
                 
-                if (!selectedVoice) {
-                    selectedVoice = voices.find(function(voice) {
-                        return voice.lang.startsWith('ja');
-                    });
+                if (japaneseVoices.length > 0) {
+                    if (options.voice_gender === 'male') {
+                        // 男性音声を検索（より多くのパターンを試す）
+                        selectedVoice = japaneseVoices.find(function(voice) {
+                            var name = voice.name.toLowerCase();
+                            return name.includes('male') || 
+                                   name.includes('男') ||
+                                   name.includes('masculine') ||
+                                   name.includes('man') ||
+                                   name.includes('男性');
+                        });
+                        
+                        // 男性音声が見つからない場合は、最初の日本語音声を使用
+                        if (!selectedVoice) {
+                            selectedVoice = japaneseVoices[0];
+                        }
+                    } else {
+                        // 女性音声を検索（より多くのパターンを試す）
+                        selectedVoice = japaneseVoices.find(function(voice) {
+                            var name = voice.name.toLowerCase();
+                            return name.includes('female') || 
+                                   name.includes('女') ||
+                                   name.includes('feminine') ||
+                                   name.includes('woman') ||
+                                   name.includes('女性') ||
+                                   name.includes('girl') ||
+                                   name.includes('lady') ||
+                                   name.includes('voice') ||
+                                   name.includes('speech');
+                        });
+                        
+                        // 女性音声が見つからない場合は、音声のインデックスで判断
+                        if (!selectedVoice && japaneseVoices.length > 1) {
+                            // 通常、女性音声は男性音声より後に来ることが多い
+                            // 複数の音声がある場合、後半の音声を試す
+                            for (var i = Math.floor(japaneseVoices.length / 2); i < japaneseVoices.length; i++) {
+                                var voice = japaneseVoices[i];
+                                var name = voice.name.toLowerCase();
+                                // 男性を示すキーワードが含まれていない場合は女性音声と判断
+                                if (!name.includes('male') && 
+                                    !name.includes('男') && 
+                                    !name.includes('masculine') && 
+                                    !name.includes('man') && 
+                                    !name.includes('男性')) {
+                                    selectedVoice = voice;
+                                    break;
+                                }
+                            }
+                            
+                            // まだ見つからない場合は最後の音声を使用
+                            if (!selectedVoice) {
+                                selectedVoice = japaneseVoices[japaneseVoices.length - 1];
+                            }
+                        } else if (!selectedVoice && japaneseVoices.length === 1) {
+                            // 音声が1つしかない場合は、その音声を使用
+                            selectedVoice = japaneseVoices[0];
+                        }
+                    }
+                } else {
+                    // 日本語音声がない場合は、利用可能な最初の音声を使用
+                    selectedVoice = voices[0];
                 }
                 
                 if (selectedVoice) {
@@ -404,26 +550,41 @@
         
         showError: function($icon, message) {
             $icon.removeClass('reading completed').addClass('error');
-            $icon.find('.yomiagekun-tooltip').text(message);
+            $icon.find('.yomiagekun-tooltip').text(message).show();
             
             // 3秒後に元の状態に戻す
             setTimeout(function() {
                 $icon.removeClass('error');
-                $icon.find('.yomiagekun-tooltip').text('クリックして読み上げ');
+                $icon.find('.yomiagekun-tooltip').text('読み上げましょうか？').show();
             }, 3000);
         }
     };
     
     // DOM読み込み完了後に初期化
     $(document).ready(function() {
+        console.log('読み上げくんプラグイン: 初期化開始');
         YomiageKun.init();
+        console.log('読み上げくんプラグイン: 初期化完了');
     });
     
     // 音声リストの読み込み待ち（一部のブラウザで必要）
     if (speechSynthesis.onvoiceschanged !== undefined) {
         speechSynthesis.onvoiceschanged = function() {
-            // 音声リストが更新された時の処理（必要に応じて）
+            // 音声リストが更新された時の処理
+            console.log('音声リストが更新されました:', speechSynthesis.getVoices().length + '個の音声が利用可能');
         };
+    }
+    
+    // 音声リストの読み込みを待つ関数
+    function waitForVoices(callback) {
+        var voices = speechSynthesis.getVoices();
+        if (voices.length > 0) {
+            callback(voices);
+        } else {
+            setTimeout(function() {
+                waitForVoices(callback);
+            }, 100);
+        }
     }
     
 })(jQuery);

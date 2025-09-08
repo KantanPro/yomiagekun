@@ -157,9 +157,11 @@ class YomiageKun {
     }
     
     public function admin_page() {
+        $options = get_option('yomiagekun_options');
         ?>
         <div class="wrap">
             <h1>読み上げくん設定</h1>
+            
             <form method="post" action="options.php" enctype="multipart/form-data">
                 <?php
                 settings_fields('yomiagekun_options');
@@ -228,6 +230,10 @@ class YomiageKun {
         $value = isset($options['icon_position']) ? $options['icon_position'] : 'bottom-right';
         ?>
         <select name="yomiagekun_options[icon_position]">
+            <option value="top-right" <?php selected($value, 'top-right'); ?>>右上</option>
+            <option value="top-left" <?php selected($value, 'top-left'); ?>>左上</option>
+            <option value="middle-right" <?php selected($value, 'middle-right'); ?>>中右</option>
+            <option value="middle-left" <?php selected($value, 'middle-left'); ?>>中左</option>
             <option value="bottom-right" <?php selected($value, 'bottom-right'); ?>>右下</option>
             <option value="bottom-left" <?php selected($value, 'bottom-left'); ?>>左下</option>
         </select>
@@ -245,26 +251,34 @@ class YomiageKun {
     public function validate_options($input) {
         $output = array();
         
+        // デバッグ用：入力された設定をログ出力
+        error_log('読み上げくん: 設定保存開始 - 入力データ: ' . print_r($input, true));
+        
         if (isset($input['openai_api_key'])) {
             $output['openai_api_key'] = sanitize_text_field($input['openai_api_key']);
         }
         
         if (isset($input['voice_gender'])) {
             $output['voice_gender'] = in_array($input['voice_gender'], array('male', 'female')) ? $input['voice_gender'] : 'female';
+            error_log('読み上げくん: 音声性別設定: ' . $output['voice_gender']);
         }
         
         if (isset($input['speech_rate'])) {
             $output['speech_rate'] = floatval($input['speech_rate']);
             if ($output['speech_rate'] < 0.5) $output['speech_rate'] = 0.5;
             if ($output['speech_rate'] > 2.0) $output['speech_rate'] = 2.0;
+            error_log('読み上げくん: 読み上げ速度設定: ' . $output['speech_rate']);
         }
         
         if (isset($input['icon_position'])) {
-            $output['icon_position'] = in_array($input['icon_position'], array('bottom-right', 'bottom-left')) ? $input['icon_position'] : 'bottom-right';
+            $valid_positions = array('top-right', 'top-left', 'middle-right', 'middle-left', 'bottom-right', 'bottom-left');
+            $output['icon_position'] = in_array($input['icon_position'], $valid_positions) ? $input['icon_position'] : 'bottom-right';
+            error_log('読み上げくん: アイコン位置設定: ' . $output['icon_position']);
         }
         
         if (isset($input['summary_accuracy'])) {
             $output['summary_accuracy'] = in_array($input['summary_accuracy'], array('simple', 'detailed', 'full')) ? $input['summary_accuracy'] : 'simple';
+            error_log('読み上げくん: 要約精度設定: ' . $output['summary_accuracy']);
         }
         
         if (isset($input['enabled'])) {
@@ -283,6 +297,9 @@ class YomiageKun {
             $output['icon_url'] = isset($input['icon_url']) ? $input['icon_url'] : YOMIAGEKUN_PLUGIN_URL . 'assets/icon.png';
         }
         
+        // デバッグ用：保存される設定をログ出力
+        error_log('読み上げくん: 設定保存完了 - 保存データ: ' . print_r($output, true));
+        
         return $output;
     }
     
@@ -300,6 +317,9 @@ class YomiageKun {
         
         wp_enqueue_script('yomiagekun', YOMIAGEKUN_PLUGIN_URL . 'assets/yomiagekun.js', array('jquery'), YOMIAGEKUN_VERSION, true);
         wp_enqueue_style('yomiagekun', YOMIAGEKUN_PLUGIN_URL . 'assets/yomiagekun.css', array(), YOMIAGEKUN_VERSION);
+        
+        // デバッグ用：設定をログ出力
+        error_log('読み上げくん: フロントエンドに送信する設定: ' . print_r($options, true));
         
         wp_localize_script('yomiagekun', 'yomiagekun_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
