@@ -1,0 +1,84 @@
+=== 読み上げくん ===
+Contributors: KantanPro
+Tags: accessibility, text-to-speech, ai, summary, japanese
+Requires at least: 5.0
+Tested up to: 6.4
+Requires PHP: 7.4
+Stable tag: 1.0.1
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+ブログの内容をAIが要約して読み上げてくれるアクセシビリティプラグインです。
+
+== Description ==
+
+読み上げくんは、視覚障害者や高齢者、忙しい方々のために、ブログ記事の内容をAIが要約して読み上げてくれるWordPressプラグインです。
+
+= 主な機能 =
+
+* **AI要約機能**: OpenAI APIを使用して記事内容を要約
+* **音声読み上げ**: Web Speech APIを使用した自然な音声読み上げ
+* **カスタマイズ可能**: 音声の性別、読み上げ速度、要約精度を調整可能
+* **アクセシビリティ対応**: 視覚障害者にも配慮した設計
+* **軽量設計**: 必要最小限のファイル構成で軽快に動作
+
+= 要約精度オプション =
+
+* **簡略モード**: 短く要点のみを要約（デフォルト）
+* **詳細モード**: より詳しい内容を含む要約
+* **完全モード**: 要約せずに全テキストを読み上げ
+
+= 使用方法 =
+
+1. プラグインを有効化
+2. 設定画面でOpenAI API Keyを入力
+3. 音声設定を調整
+4. 記事ページでフローティングアイコンをクリック
+
+== Installation ==
+
+1. プラグインをアップロード
+2. プラグインを有効化
+3. 設定画面でOpenAI API Keyを設定
+4. 必要に応じて音声設定を調整
+
+== Frequently Asked Questions ==
+
+= OpenAI API Keyは必要ですか？ =
+
+はい、要約機能を使用するためにOpenAI API Keyが必要です。API Keyは設定画面で入力してください。
+
+= どのような音声で読み上げられますか？ =
+
+ブラウザのWeb Speech APIを使用するため、ブラウザの設定に依存します。日本語音声エンジンが利用可能なブラウザで最適に動作します。
+
+= 要約の精度は調整できますか？ =
+
+はい、設定画面で簡略・詳細・完全の3つのモードから選択できます。
+
+== Screenshots ==
+
+1. 設定画面
+2. フローティングアイコン
+3. 要約結果表示
+
+== Changelog ==
+
+= 1.0.1 =
+* 初回リリース
+* AI要約機能の実装
+* 音声読み上げ機能の実装
+* カスタマイズ可能な設定オプション
+* アクセシビリティ対応
+
+== Upgrade Notice ==
+
+= 1.0.1 =
+初回リリースです。プラグインをインストールしてご利用ください。
+
+== Technical Details ==
+
+* 対応PHPバージョン: 7.4以上
+* 対応WordPressバージョン: 5.0以上
+* 必要API: OpenAI API
+* 使用技術: Web Speech API, jQuery
