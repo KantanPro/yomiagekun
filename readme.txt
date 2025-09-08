@@ -4,7 +4,7 @@ Tags: accessibility, text-to-speech, ai, summary, japanese
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -64,6 +64,11 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 == Changelog ==
 
+= 1.0.2 =
+* アイコン位置の選択肢を拡張（右上、左上、中右、中左を追加）
+* デバッグログ機能を追加（設定保存とフロントエンド送信時のログ出力）
+* 設定画面のUI改善
+
 = 1.0.1 =
 * 初回リリース
 * AI要約機能の実装
@@ -72,6 +77,9 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 * アクセシビリティ対応
 
 == Upgrade Notice ==
+
+= 1.0.2 =
+アイコン位置の選択肢が拡張され、デバッグ機能が追加されました。設定画面でより柔軟なカスタマイズが可能になります。
 
 = 1.0.1 =
 初回リリースです。プラグインをインストールしてご利用ください。
