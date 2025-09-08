@@ -115,8 +115,12 @@
         
         handleClick: function(e) {
             e.preventDefault();
+            e.stopPropagation();
             
             var $icon = $(e.currentTarget);
+            
+            // モバイルデバイスの検出
+            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             
             // 読み上げ中の場合は一時停止/再開
             if (this.isPlaying) {
@@ -128,8 +132,16 @@
                 return;
             }
             
-            // 停止中の場合はデフォルト精度で読み上げ開始
-            this.startReadingWithAccuracy(this.selectedAccuracy, $icon);
+            // モバイルでは音声合成を開始する前にユーザーインタラクションを確実にする
+            if (isMobile) {
+                // モバイルでは少し遅延を入れてから開始
+                setTimeout(function() {
+                    this.startReadingWithAccuracy(this.selectedAccuracy, $icon);
+                }.bind(this), 50);
+            } else {
+                // 停止中の場合はデフォルト精度で読み上げ開始
+                this.startReadingWithAccuracy(this.selectedAccuracy, $icon);
+            }
         },
         
         startReadingWithAccuracy: function(accuracy, $icon) {
@@ -268,6 +280,9 @@
                 return;
             }
             
+            // モバイルデバイスの検出
+            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
             // 既存の音声を停止
             this.stopReading($icon);
             
@@ -398,17 +413,30 @@
             };
             
             utterance.onerror = function(event) {
+                console.log('音声読み上げエラー:', event.error);
                 self.showError($icon, '音声読み上げエラー: ' + event.error);
             };
             
-            // 音声を開始
-            speechSynthesis.speak(utterance);
+            // モバイルでは少し遅延を入れて音声を開始
+            if (isMobile) {
+                setTimeout(function() {
+                    speechSynthesis.speak(utterance);
+                }, 100);
+            } else {
+                speechSynthesis.speak(utterance);
+            }
         },
         
         speakLongText: function(text, $icon, options) {
             var self = this;
-            // チャンクサイズを調整（詳細モードでは少し小さく）
+            // モバイルデバイスの検出
+            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            // チャンクサイズを調整（詳細モードでは少し小さく、モバイルではさらに小さく）
             var chunkSize = options.summary_accuracy === 'detailed' ? 1500 : 2000;
+            if (isMobile) {
+                chunkSize = Math.min(chunkSize, 1000); // モバイルでは1000文字以下に制限
+            }
             this.currentChunks = this.splitTextIntoChunks(text, chunkSize);
             this.currentChunkIndex = 0;
             
@@ -518,10 +546,18 @@
                 };
                 
                 utterance.onerror = function(event) {
+                    console.log('音声読み上げエラー:', event.error);
                     self.showError($icon, '音声読み上げエラー: ' + event.error);
                 };
                 
-                speechSynthesis.speak(utterance);
+                // モバイルでは少し遅延を入れて音声を開始
+                if (isMobile) {
+                    setTimeout(function() {
+                        speechSynthesis.speak(utterance);
+                    }, 100);
+                } else {
+                    speechSynthesis.speak(utterance);
+                }
             }
             
             speakNextChunk();
