@@ -1,0 +1,256 @@
+/* 読み上げくん - フローティングアイコンのスタイル */
+
+.yomiagekun-floating-icon {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 64px;
+    height: 64px;
+    background: #4CAF50;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid #fff;
+}
+
+/* 位置設定: 左下 */
+.yomiagekun-floating-icon.position-bottom-left {
+    right: auto;
+    left: 20px;
+}
+
+.yomiagekun-floating-icon:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.yomiagekun-floating-icon:active {
+    transform: scale(0.95);
+}
+
+.yomiagekun-floating-icon img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.yomiagekun-floating-icon .default-icon {
+    width: 40px;
+    height: 40px;
+    background: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #4CAF50;
+}
+
+/* 読み上げ中の状態 */
+.yomiagekun-floating-icon.reading {
+    background: #FF9800;
+    animation: pulse 1.5s infinite;
+}
+
+/* 一時停止中の状態 */
+.yomiagekun-floating-icon.paused {
+    background: #9C27B0;
+    animation: none;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* 読み上げ完了の状態 */
+.yomiagekun-floating-icon.completed {
+    background: #4CAF50;
+}
+
+/* エラーの状態 */
+.yomiagekun-floating-icon.error {
+    background: #F44336;
+}
+
+/* ツールチップ */
+.yomiagekun-tooltip {
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    background: #333;
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 10000;
+}
+
+.yomiagekun-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    right: 20px;
+    border: 5px solid transparent;
+    border-top-color: #333;
+}
+
+/* 精度選択メニュー */
+.yomiagekun-accuracy-menu {
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    z-index: 10001;
+    min-width: 200px;
+    overflow: hidden;
+}
+
+.yomiagekun-accuracy-menu::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    right: 20px;
+    border: 5px solid transparent;
+    border-top-color: #fff;
+}
+
+.yomiagekun-accuracy-menu.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.yomiagekun-accuracy-option {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s ease;
+    font-size: 14px;
+    color: #333;
+}
+
+.yomiagekun-accuracy-option:last-child {
+    border-bottom: none;
+}
+
+.yomiagekun-accuracy-option:hover {
+    background-color: #f5f5f5;
+}
+
+.yomiagekun-accuracy-option.active {
+    background-color: #e3f2fd;
+    color: #1976d2;
+    font-weight: bold;
+}
+
+.yomiagekun-accuracy-option .option-title {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.yomiagekun-accuracy-option .option-description {
+    font-size: 12px;
+    color: #666;
+}
+
+/* 左下位置のツールチップ */
+.yomiagekun-floating-icon.position-bottom-left .yomiagekun-tooltip {
+    right: auto;
+    left: 0;
+}
+
+.yomiagekun-floating-icon.position-bottom-left .yomiagekun-tooltip::after {
+    right: auto;
+    left: 20px;
+}
+
+/* 左下位置の精度選択メニュー */
+.yomiagekun-floating-icon.position-bottom-left .yomiagekun-accuracy-menu {
+    right: auto;
+    left: 0;
+}
+
+.yomiagekun-floating-icon.position-bottom-left .yomiagekun-accuracy-menu::after {
+    right: auto;
+    left: 20px;
+}
+
+.yomiagekun-floating-icon:hover .yomiagekun-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+    .yomiagekun-floating-icon {
+        width: 56px;
+        height: 56px;
+        bottom: 15px;
+        right: 15px;
+    }
+    
+    .yomiagekun-floating-icon.position-bottom-left {
+        right: auto;
+        left: 15px;
+    }
+    
+    .yomiagekun-floating-icon img,
+    .yomiagekun-floating-icon .default-icon {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .yomiagekun-floating-icon .default-icon {
+        font-size: 20px;
+    }
+}
+
+/* アクセシビリティ対応 */
+@media (prefers-reduced-motion: reduce) {
+    .yomiagekun-floating-icon {
+        transition: none;
+    }
+    
+    .yomiagekun-floating-icon.reading {
+        animation: none;
+    }
+}
+
+/* 高コントラストモード対応 */
+@media (prefers-contrast: high) {
+    .yomiagekun-floating-icon {
+        border: 3px solid #000;
+    }
+    
+    .yomiagekun-tooltip {
+        background: #000;
+        border: 1px solid #fff;
+    }
+    
+    .yomiagekun-tooltip::after {
+        border-top-color: #000;
+    }
+}
