@@ -555,7 +555,7 @@
             // 3秒後に元の状態に戻す
             setTimeout(function() {
                 $icon.removeClass('error');
-                $icon.find('.yomiagekun-tooltip').text('読み上げましょうか？').show();
+                $icon.find('.yomiagekun-tooltip').text('もう一度お試しください').show();
             }, 3000);
         }
     };
