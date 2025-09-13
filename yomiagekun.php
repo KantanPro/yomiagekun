@@ -3,7 +3,7 @@
  * Plugin Name: 読み上げくん
  * Plugin URI: https://github.com/your-username/yomiagekun
  * Description: ブログの内容をAIが要約して読み上げてくれるアクセシビリティプラグイン
- * Version: 1.0.3
+ * Version: 1.0.4
  * Author: Your Name
  * Author URI: https://your-website.com
  * License: GPL v2 or later
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
 }
 
 // プラグインの定数定義
-define('YOMIAGEKUN_VERSION', '1.0.3');
+define('YOMIAGEKUN_VERSION', '1.0.4');
 define('YOMIAGEKUN_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('YOMIAGEKUN_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('YOMIAGEKUN_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -187,8 +187,19 @@ class YomiageKun {
     public function api_key_field() {
         $options = get_option('yomiagekun_options');
         $value = isset($options['openai_api_key']) ? $options['openai_api_key'] : '';
-        echo '<input type="password" name="yomiagekun_options[openai_api_key]" value="' . esc_attr($value) . '" class="regular-text" />';
-        echo '<p class="description">OpenAI API Keyを入力してください。</p>';
+        
+        // 既存のAPIキーがある場合はマスク表示
+        $display_value = '';
+        if (!empty($value)) {
+            $display_value = str_repeat('*', strlen($value) - 8) . substr($value, -8);
+        }
+        
+        echo '<input type="password" name="yomiagekun_options[openai_api_key]" value="' . esc_attr($display_value) . '" class="regular-text" placeholder="sk-proj-..." />';
+        echo '<p class="description">OpenAI API Keyを入力してください。既存のキーを変更する場合は、新しいキーを入力してください。</p>';
+        echo '<p class="description" style="color: #d63638;"><strong>セキュリティ注意:</strong> APIキーは安全に保存されますが、定期的に更新することを推奨します。</p>';
+        
+        // 設定エラーの表示
+        settings_errors('yomiagekun_options');
     }
     
     public function voice_gender_field() {
@@ -294,7 +305,21 @@ class YomiageKun {
         error_log('読み上げくん: 設定保存開始 - 入力データ: ' . print_r($input, true));
         
         if (isset($input['openai_api_key'])) {
-            $output['openai_api_key'] = sanitize_text_field($input['openai_api_key']);
+            $api_key = sanitize_text_field($input['openai_api_key']);
+            
+            // マスク表示された値（***...）の場合は既存のキーを保持
+            if (strpos($api_key, '*') !== false) {
+                $existing_options = get_option('yomiagekun_options');
+                $output['openai_api_key'] = isset($existing_options['openai_api_key']) ? $existing_options['openai_api_key'] : '';
+            } else {
+                // 新しいAPIキーの形式を検証
+                if (!empty($api_key) && !preg_match('/^sk-[a-zA-Z0-9]{48}$/', $api_key)) {
+                    add_settings_error('yomiagekun_options', 'invalid_api_key', 'OpenAI API Keyの形式が正しくありません。');
+                    $api_key = ''; // 無効なキーは空にする
+                }
+                
+                $output['openai_api_key'] = $api_key;
+            }
         }
         
         if (isset($input['voice_gender'])) {
