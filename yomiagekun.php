@@ -93,7 +93,9 @@ class YomiageKun {
     }
     
     public function admin_init() {
+        error_log('読み上げくん: admin_init() が呼び出されました');
         register_setting('yomiagekun_options', 'yomiagekun_options', array($this, 'validate_options'));
+        error_log('読み上げくん: register_setting が登録されました');
         
         add_settings_section(
             'yomiagekun_main',
@@ -169,6 +171,7 @@ class YomiageKun {
     
     public function admin_page() {
         $options = get_option('yomiagekun_options');
+        error_log('読み上げくん: 管理画面表示 - 現在の設定: ' . print_r($options, true));
         ?>
         <div class="wrap">
             <h1>読み上げくん設定</h1>
@@ -302,20 +305,31 @@ class YomiageKun {
         $output = array();
         
         // デバッグ用：入力された設定をログ出力
+        error_log('読み上げくん: validate_options() が呼び出されました');
         error_log('読み上げくん: 設定保存開始 - 入力データ: ' . print_r($input, true));
         
         if (isset($input['openai_api_key'])) {
             $api_key = sanitize_text_field($input['openai_api_key']);
             
+            // デバッグ用：入力されたAPIキーの情報をログ出力
+            error_log('読み上げくん: APIキー入力 - 長さ: ' . strlen($api_key) . ', 先頭3文字: ' . substr($api_key, 0, 3));
+            
             // マスク表示された値（***...）の場合は既存のキーを保持
             if (strpos($api_key, '*') !== false) {
                 $existing_options = get_option('yomiagekun_options');
                 $output['openai_api_key'] = isset($existing_options['openai_api_key']) ? $existing_options['openai_api_key'] : '';
+                error_log('読み上げくん: マスク表示された値のため既存キーを保持');
             } else {
-                // 新しいAPIキーの形式を検証
-                if (!empty($api_key) && !preg_match('/^sk-[a-zA-Z0-9]{48}$/', $api_key)) {
-                    add_settings_error('yomiagekun_options', 'invalid_api_key', 'OpenAI API Keyの形式が正しくありません。');
-                    $api_key = ''; // 無効なキーは空にする
+                // 新しいAPIキーの形式を検証（より柔軟な形式チェック）
+                if (!empty($api_key)) {
+                    // OpenAI APIキーの基本的な形式をチェック（sk-で始まり、適切な長さ）
+                    if (!preg_match('/^sk-[a-zA-Z0-9\-_]+$/', $api_key) || strlen($api_key) < 20) {
+                        error_log('読み上げくん: APIキー形式エラー - 入力値: ' . substr($api_key, 0, 10) . '..., 長さ: ' . strlen($api_key));
+                        add_settings_error('yomiagekun_options', 'invalid_api_key', 'OpenAI API Keyの形式が正しくありません。sk-で始まる文字列を入力してください。');
+                        $api_key = ''; // 無効なキーは空にする
+                    } else {
+                        error_log('読み上げくん: APIキー形式OK - 長さ: ' . strlen($api_key));
+                    }
                 }
                 
                 $output['openai_api_key'] = $api_key;
@@ -375,6 +389,10 @@ class YomiageKun {
         
         // デバッグ用：保存される設定をログ出力
         error_log('読み上げくん: 設定保存完了 - 保存データ: ' . print_r($output, true));
+        
+        // 実際にデータベースに保存されるかチェック
+        $saved_options = get_option('yomiagekun_options');
+        error_log('読み上げくん: データベースから取得した設定: ' . print_r($saved_options, true));
         
         return $output;
     }
