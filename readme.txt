@@ -4,7 +4,7 @@ Tags: accessibility, text-to-speech, ai, summary, japanese
 Requires at least: 5.0
 Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.0.3
+Stable tag: 1.0.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -64,6 +64,12 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 == Changelog ==
 
+= 1.0.4 =
+* セキュリティ強化: APIキーのマスク表示機能を追加
+* APIキーの形式検証機能を追加
+* セキュリティベストプラクティスのドキュメントを追加
+* 設定画面でのエラーメッセージ表示を改善
+
 = 1.0.3 =
 * カテゴリー選択機能を追加（設定画面で表示するカテゴリーを選択可能）
 * モバイルデバイス検出機能を追加
@@ -88,6 +94,9 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 * アクセシビリティ対応
 
 == Upgrade Notice ==
+
+= 1.0.4 =
+セキュリティが大幅に強化されました。APIキーのマスク表示機能と形式検証機能が追加され、より安全にプラグインを使用できます。
 
 = 1.0.3 =
 カテゴリー選択機能、モバイル対応の改善、読み上げ機能の大幅な改善が含まれています。モバイルデバイスでの使用感が向上し、より柔軟な設定が可能になります。
