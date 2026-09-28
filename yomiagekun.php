@@ -3,7 +3,7 @@
  * Plugin Name: 読み上げくん
  * Plugin URI: https://github.com/KantanPro/yomiagekun
  * Description: ブログの内容をAIが要約して読み上げてくれるアクセシビリティプラグイン
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: KantanPro
  * Author URI: https://www.kantanpro.com/
  * License: GPL v2 or later
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
 }
 
 // プラグインの定数定義
-define('YOMIAGEKUN_VERSION', '1.1.0');
+define('YOMIAGEKUN_VERSION', '1.1.1');
 define('YOMIAGEKUN_PLUGIN_FILE', __FILE__);
 define('YOMIAGEKUN_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('YOMIAGEKUN_PLUGIN_PATH', plugin_dir_path(__FILE__));
@@ -509,7 +509,14 @@ class YomiageKun {
 
         $summary = $this->get_summary($this->get_title_text($post), $text, $accuracy, $options['openai_api_key'], $model);
         if (is_wp_error($summary)) {
-            wp_send_json_error(array('message' => $summary->get_error_message()), 502);
+            $message = $summary->get_error_message();
+            // 原因（キーの誤りなど）は管理者にだけ見せる
+            $reason = $summary->get_error_data();
+            if (is_string($reason) && $reason !== '' && current_user_can('manage_options')) {
+                $message .= '（管理者向け: ' . $reason . '）';
+            }
+            // 502/504 は Cloudflare が自前のエラーページに差し替えて本文が届かないため 500 で返す
+            wp_send_json_error(array('message' => $message), 500);
         }
 
         update_post_meta($post_id, $cache_key, array('hash' => $cache_hash, 'text' => $summary));
@@ -599,18 +606,21 @@ class YomiageKun {
         ));
 
         if (is_wp_error($response)) {
-            return new WP_Error('yomiagekun_http', '要約の生成中に通信エラーが発生しました。');
+            return new WP_Error('yomiagekun_http', '要約の生成中に通信エラーが発生しました。', $response->get_error_message());
         }
 
         $data = json_decode(wp_remote_retrieve_body($response), true);
         $summary = isset($data['choices'][0]['message']['content']) ? (string) $data['choices'][0]['message']['content'] : '';
 
         if (wp_remote_retrieve_response_code($response) !== 200 || $summary === '') {
+            $reason = 'OpenAI HTTP ' . wp_remote_retrieve_response_code($response);
+            if (isset($data['error']['code']) && is_string($data['error']['code'])) {
+                $reason .= ' ' . $data['error']['code'];
+            }
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                $reason = isset($data['error']['message']) ? $data['error']['message'] : 'HTTP ' . wp_remote_retrieve_response_code($response);
                 error_log('読み上げくん: 要約の生成に失敗: ' . $reason);
             }
-            return new WP_Error('yomiagekun_api', '要約の生成に失敗しました。');
+            return new WP_Error('yomiagekun_api', '要約の生成に失敗しました。', $reason);
         }
 
         return $this->clean_spoken_text($summary);
