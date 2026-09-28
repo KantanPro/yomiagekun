@@ -1,638 +1,486 @@
 /**
  * 読み上げくん - フロントエンドJavaScript
+ *
+ * アイコンを押すと操作パネルが開く。読み方（簡略・詳細・完全）と速さを選んで読み上げる。
+ * 本文は文ごとに短く区切ってキューで順に読む（Chrome は長い発話を途中で止めるため）。
  */
 
-(function($) {
+(function() {
     'use strict';
-    
-    var YomiageKun = {
-        isPlaying: false,
-        isPaused: false,
-        currentUtterance: null,
-        currentChunks: [],
-        currentChunkIndex: 0,
-        selectedAccuracy: 'simple', // デフォルトは簡略
-        showAccuracyMenu: false,
-        
-        init: function() {
-            console.log('読み上げくん: プラグイン初期化中...');
-            console.log('読み上げくん: 設定オプション:', yomiagekun_ajax.options);
-            this.createFloatingIcon();
-            this.bindEvents();
-            console.log('読み上げくん: プラグイン初期化完了');
-        },
-        
-        createFloatingIcon: function() {
-            var options = yomiagekun_ajax.options;
-            var iconHtml = '';
-            
-            if (options.icon_url && options.icon_url !== '') {
-                iconHtml = '<img src="' + options.icon_url + '" alt="読み上げくん" />';
-            } else {
-                iconHtml = '<div class="default-icon">📢</div>';
-            }
-            
-            // 位置設定に基づいてクラスを追加
-            var positionClass = '';
-            switch (options.icon_position) {
-                case 'top-right':
-                    positionClass = ' position-top-right';
-                    break;
-                case 'top-left':
-                    positionClass = ' position-top-left';
-                    break;
-                case 'middle-right':
-                    positionClass = ' position-middle-right';
-                    break;
-                case 'middle-left':
-                    positionClass = ' position-middle-left';
-                    break;
-                case 'bottom-left':
-                    positionClass = ' position-bottom-left';
-                    break;
-                case 'bottom-right':
-                default:
-                    positionClass = ' position-bottom-right';
-                    break;
-            }
-            
-            var accuracyMenu = '<div class="yomiagekun-accuracy-menu">' +
-                '<div class="yomiagekun-accuracy-option" data-accuracy="simple">' +
-                    '<div class="option-title">簡略</div>' +
-                    '<div class="option-description">短く要点のみを要約</div>' +
-                '</div>' +
-                '<div class="yomiagekun-accuracy-option" data-accuracy="detailed">' +
-                    '<div class="option-title">詳細</div>' +
-                    '<div class="option-description">より詳しい内容を含む要約</div>' +
-                '</div>' +
-                '<div class="yomiagekun-accuracy-option" data-accuracy="full">' +
-                    '<div class="option-title">完全</div>' +
-                    '<div class="option-description">要約せずに全テキストを読み上げ</div>' +
-                '</div>' +
-                '</div>';
-            
-            var floatingIcon = $('<div class="yomiagekun-floating-icon' + positionClass + '" title="読み上げくん">' +
-                iconHtml +
-                '<div class="yomiagekun-tooltip">読み上げましょうか？</div>' +
-                accuracyMenu +
-                '</div>');
-            
-            $('body').append(floatingIcon);
-        },
-        
-        bindEvents: function() {
-            var self = this;
-            
-            // アイコンのクリックイベント
-            $(document).on('click', '.yomiagekun-floating-icon', this.handleClick.bind(this));
-            
-            // マウスオーバーイベント
-            $(document).on('mouseenter', '.yomiagekun-floating-icon', function() {
-                if (!self.isPlaying) {
-                    self.showAccuracyMenu($(this));
-                }
-            });
-            
-            $(document).on('mouseleave', '.yomiagekun-floating-icon', function() {
-                self.hideAccuracyMenu($(this));
-            });
-            
-            // 精度選択オプションのクリックイベント
-            $(document).on('click', '.yomiagekun-accuracy-option', function(e) {
-                e.stopPropagation();
-                var accuracy = $(this).data('accuracy');
-                var $icon = $(this).closest('.yomiagekun-floating-icon');
-                self.selectAccuracy(accuracy, $icon);
-            });
-            
-            // メニュー外クリックで閉じる
-            $(document).on('click', function(e) {
-                if (!$(e.target).closest('.yomiagekun-floating-icon').length) {
-                    self.hideAllAccuracyMenus();
-                }
-            });
-        },
-        
-        handleClick: function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            var $icon = $(e.currentTarget);
-            
-            // モバイルデバイスの検出
-            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            
-            // 読み上げ中の場合は一時停止/再開
-            if (this.isPlaying) {
-                if (this.isPaused) {
-                    this.resumeReading($icon);
-                } else {
-                    this.pauseReading($icon);
-                }
-                return;
-            }
-            
-            // モバイルでは音声合成を開始する前にユーザーインタラクションを確実にする
-            if (isMobile) {
-                // モバイルでは少し遅延を入れてから開始
-                setTimeout(function() {
-                    this.startReadingWithAccuracy(this.selectedAccuracy, $icon);
-                }.bind(this), 50);
-            } else {
-                // 停止中の場合はデフォルト精度で読み上げ開始
-                this.startReadingWithAccuracy(this.selectedAccuracy, $icon);
-            }
-        },
-        
-        startReadingWithAccuracy: function(accuracy, $icon) {
-            var postId = this.getCurrentPostId();
-            
-            if (!postId) {
-                this.showError($icon, '記事が見つかりません');
-                return;
-            }
-            
-            this.startReading($icon);
-            
-            // AJAXで要約を取得（精度を指定）
-            var self = this;
-            $.ajax({
-                url: yomiagekun_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'yomiagekun_summarize',
-                    post_id: postId,
-                    nonce: yomiagekun_ajax.nonce,
-                    accuracy: accuracy
-                },
-                success: function(response) {
-                    if (response.success && response.data.summary) {
-                        self.speakText(response.data.summary, $icon);
-                    } else {
-                        self.showError($icon, '要約の生成に失敗しました');
-                    }
-                },
-                error: function() {
-                    self.showError($icon, '通信エラーが発生しました');
-                }
-            });
-        },
-        
-        getCurrentPostId: function() {
-            // 単一記事ページかどうかをチェック
-            if (typeof yomiagekun_ajax.post_id !== 'undefined') {
-                return yomiagekun_ajax.post_id;
-            }
-            
-            // グローバル変数から取得を試行
-            if (typeof wp !== 'undefined' && wp.data && wp.data.select) {
-                try {
-                    return wp.data.select('core/editor').getCurrentPostId();
-                } catch (e) {
-                    // エラーを無視
-                }
-            }
-            
-            // URLから取得を試行
-            var url = window.location.href;
-            var match = url.match(/\/\d+\//);
-            if (match) {
-                return match[0].replace(/\//g, '');
-            }
-            
-            return null;
-        },
-        
-        startReading: function($icon) {
-            $icon.removeClass('completed error paused').addClass('reading');
-            $icon.find('.yomiagekun-tooltip').hide();
-        },
-        
-        pauseReading: function($icon) {
-            if (this.isPlaying && !this.isPaused) {
-                speechSynthesis.pause();
-                this.isPaused = true;
-                $icon.removeClass('reading').addClass('paused');
-                $icon.find('.yomiagekun-tooltip').hide();
-            }
-        },
-        
-        resumeReading: function($icon) {
-            if (this.isPlaying && this.isPaused) {
-                speechSynthesis.resume();
-                this.isPaused = false;
-                $icon.removeClass('paused').addClass('reading');
-                $icon.find('.yomiagekun-tooltip').hide();
-            }
-        },
-        
-        stopReading: function($icon) {
-            speechSynthesis.cancel();
-            this.isPlaying = false;
-            this.isPaused = false;
-            this.currentUtterance = null;
-            this.currentChunks = [];
-            this.currentChunkIndex = 0;
-            $icon.removeClass('reading paused completed error');
-            $icon.find('.yomiagekun-tooltip').text('読み上げましょうか？').show();
-        },
-        
-        showAccuracyMenu: function($icon) {
-            if (this.isPlaying) return;
-            
-            $icon.find('.yomiagekun-accuracy-menu').addClass('show');
-            $icon.find('.yomiagekun-tooltip').hide();
-            this.updateActiveOption($icon);
-        },
-        
-        hideAccuracyMenu: function($icon) {
-            $icon.find('.yomiagekun-accuracy-menu').removeClass('show');
-            if (!this.isPlaying) {
-                $icon.find('.yomiagekun-tooltip').show();
-            }
-        },
-        
-        hideAllAccuracyMenus: function() {
-            $('.yomiagekun-accuracy-menu').removeClass('show');
-            if (!this.isPlaying) {
-                $('.yomiagekun-tooltip').show();
-            }
-        },
-        
-        selectAccuracy: function(accuracy, $icon) {
-            this.selectedAccuracy = accuracy;
-            this.hideAccuracyMenu($icon);
-            this.startReadingWithAccuracy(accuracy, $icon);
-        },
-        
-        updateActiveOption: function($icon) {
-            $icon.find('.yomiagekun-accuracy-option').removeClass('active');
-            $icon.find('.yomiagekun-accuracy-option[data-accuracy="' + this.selectedAccuracy + '"]').addClass('active');
-        },
-        
-        speakText: function(text, $icon) {
-            var options = yomiagekun_ajax.options;
-            var self = this;
-            
-            // Web Speech APIのサポートチェック
-            if (!('speechSynthesis' in window)) {
-                this.showError($icon, 'お使いのブラウザは音声合成に対応していません');
-                return;
-            }
-            
-            // モバイルデバイスの検出
-            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            
-            // 既存の音声を停止
-            this.stopReading($icon);
-            
-            // 完全モードの場合は長いテキストになる可能性があることを通知
-            if (options.summary_accuracy === 'full' && text.length > 1000) {
-                $icon.find('.yomiagekun-tooltip').text('長いテキストを読み上げ中...');
-            }
-            
-            // 長いテキストの場合は分割して読み上げ（完全モードまたは詳細モード）
-            if ((options.summary_accuracy === 'full' && text.length > 2000) || 
-                (options.summary_accuracy === 'detailed' && text.length > 1500)) {
-                this.speakLongText(text, $icon, options);
-                return;
-            }
-            
-            var utterance = new SpeechSynthesisUtterance(text);
-            this.currentUtterance = utterance;
-            
-            // 音声設定
-            utterance.rate = parseFloat(options.speech_rate) || 1.0;
-            utterance.pitch = 1.0;
-            utterance.volume = 0.8;
-            
-            // 音声の性別設定
-            var voices = speechSynthesis.getVoices();
-            var selectedVoice = null;
-            
-            // デバッグ用：利用可能な音声をコンソールに出力
-            console.log('読み上げくん: 利用可能な音声数:', voices.length);
-            console.log('読み上げくん: 利用可能な音声:', voices.map(function(v) { return v.name + ' (' + v.lang + ')'; }));
-            
-            // 日本語音声を優先して検索
-            var japaneseVoices = voices.filter(function(voice) {
-                return voice.lang.startsWith('ja');
-            });
-            
-            console.log('読み上げくん: 日本語音声数:', japaneseVoices.length);
-            console.log('読み上げくん: 日本語音声:', japaneseVoices.map(function(v) { return v.name; }));
-            console.log('読み上げくん: 選択された性別:', options.voice_gender);
-            
-            if (japaneseVoices.length > 0) {
-                if (options.voice_gender === 'male') {
-                    // 男性音声を検索（より多くのパターンを試す）
-                    selectedVoice = japaneseVoices.find(function(voice) {
-                        var name = voice.name.toLowerCase();
-                        return name.includes('male') || 
-                               name.includes('男') ||
-                               name.includes('masculine') ||
-                               name.includes('man') ||
-                               name.includes('男性');
-                    });
-                    
-                    // 男性音声が見つからない場合は、最初の日本語音声を使用
-                    if (!selectedVoice) {
-                        selectedVoice = japaneseVoices[0];
-                    }
-                } else {
-                    // 女性音声を検索（より多くのパターンを試す）
-                    selectedVoice = japaneseVoices.find(function(voice) {
-                        var name = voice.name.toLowerCase();
-                        return name.includes('female') || 
-                               name.includes('女') ||
-                               name.includes('feminine') ||
-                               name.includes('woman') ||
-                               name.includes('女性') ||
-                               name.includes('girl') ||
-                               name.includes('lady') ||
-                               name.includes('voice') ||
-                               name.includes('speech');
-                    });
-                    
-                    // 女性音声が見つからない場合は、音声のインデックスで判断
-                    if (!selectedVoice && japaneseVoices.length > 1) {
-                        // 通常、女性音声は男性音声より後に来ることが多い
-                        // 複数の音声がある場合、後半の音声を試す
-                        for (var i = Math.floor(japaneseVoices.length / 2); i < japaneseVoices.length; i++) {
-                            var voice = japaneseVoices[i];
-                            var name = voice.name.toLowerCase();
-                            // 男性を示すキーワードが含まれていない場合は女性音声と判断
-                            if (!name.includes('male') && 
-                                !name.includes('男') && 
-                                !name.includes('masculine') && 
-                                !name.includes('man') && 
-                                !name.includes('男性')) {
-                                selectedVoice = voice;
-                                break;
-                            }
-                        }
-                        
-                        // まだ見つからない場合は最後の音声を使用
-                        if (!selectedVoice) {
-                            selectedVoice = japaneseVoices[japaneseVoices.length - 1];
-                        }
-                    } else if (!selectedVoice && japaneseVoices.length === 1) {
-                        // 音声が1つしかない場合は、その音声を使用
-                        selectedVoice = japaneseVoices[0];
-                    }
-                }
-            } else {
-                // 日本語音声がない場合は、利用可能な最初の音声を使用
-                selectedVoice = voices[0];
-            }
-            
-            console.log('読み上げくん: 選択された音声:', selectedVoice ? selectedVoice.name + ' (' + selectedVoice.lang + ')' : 'なし');
-            if (selectedVoice) {
-                console.log('読み上げくん: 音声の詳細:', {
-                    name: selectedVoice.name,
-                    lang: selectedVoice.lang,
-                    default: selectedVoice.default,
-                    localService: selectedVoice.localService
-                });
-            }
-            
-            if (selectedVoice) {
-                utterance.voice = selectedVoice;
-            }
-            
-            // イベントハンドラー
-            utterance.onstart = function() {
-                self.isPlaying = true;
-                self.isPaused = false;
-                $icon.removeClass('paused').addClass('reading');
-                $icon.find('.yomiagekun-tooltip').text('読み上げ中... クリックで一時停止');
-            };
-            
-            utterance.onend = function() {
-                self.stopReading($icon);
-            };
-            
-            utterance.onerror = function(event) {
-                console.log('音声読み上げエラー:', event.error);
-                self.showError($icon, '音声読み上げエラー: ' + event.error);
-            };
-            
-            // モバイルでは少し遅延を入れて音声を開始
-            if (isMobile) {
-                setTimeout(function() {
-                    speechSynthesis.speak(utterance);
-                }, 100);
-            } else {
-                speechSynthesis.speak(utterance);
-            }
-        },
-        
-        speakLongText: function(text, $icon, options) {
-            var self = this;
-            // モバイルデバイスの検出
-            var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            
-            // チャンクサイズを調整（詳細モードでは少し小さく、モバイルではさらに小さく）
-            var chunkSize = options.summary_accuracy === 'detailed' ? 1500 : 2000;
-            if (isMobile) {
-                chunkSize = Math.min(chunkSize, 1000); // モバイルでは1000文字以下に制限
-            }
-            this.currentChunks = this.splitTextIntoChunks(text, chunkSize);
-            this.currentChunkIndex = 0;
-            
-            function speakNextChunk() {
-                if (self.currentChunkIndex >= self.currentChunks.length) {
-                    // 全てのチャンクの読み上げが完了
-                    self.stopReading($icon);
-                    return;
-                }
-                
-                var chunk = self.currentChunks[self.currentChunkIndex];
-                var utterance = new SpeechSynthesisUtterance(chunk);
-                self.currentUtterance = utterance;
-                
-                // 音声設定
-                utterance.rate = parseFloat(options.speech_rate) || 1.0;
-                utterance.pitch = 1.0;
-                utterance.volume = 0.8;
-                
-                // 音声の性別設定
-                var voices = speechSynthesis.getVoices();
-                var selectedVoice = null;
-                
-                // 日本語音声を優先して検索
-                var japaneseVoices = voices.filter(function(voice) {
-                    return voice.lang.startsWith('ja');
-                });
-                
-                if (japaneseVoices.length > 0) {
-                    if (options.voice_gender === 'male') {
-                        // 男性音声を検索（より多くのパターンを試す）
-                        selectedVoice = japaneseVoices.find(function(voice) {
-                            var name = voice.name.toLowerCase();
-                            return name.includes('male') || 
-                                   name.includes('男') ||
-                                   name.includes('masculine') ||
-                                   name.includes('man') ||
-                                   name.includes('男性');
-                        });
-                        
-                        // 男性音声が見つからない場合は、最初の日本語音声を使用
-                        if (!selectedVoice) {
-                            selectedVoice = japaneseVoices[0];
-                        }
-                    } else {
-                        // 女性音声を検索（より多くのパターンを試す）
-                        selectedVoice = japaneseVoices.find(function(voice) {
-                            var name = voice.name.toLowerCase();
-                            return name.includes('female') || 
-                                   name.includes('女') ||
-                                   name.includes('feminine') ||
-                                   name.includes('woman') ||
-                                   name.includes('女性') ||
-                                   name.includes('girl') ||
-                                   name.includes('lady') ||
-                                   name.includes('voice') ||
-                                   name.includes('speech');
-                        });
-                        
-                        // 女性音声が見つからない場合は、音声のインデックスで判断
-                        if (!selectedVoice && japaneseVoices.length > 1) {
-                            // 通常、女性音声は男性音声より後に来ることが多い
-                            // 複数の音声がある場合、後半の音声を試す
-                            for (var i = Math.floor(japaneseVoices.length / 2); i < japaneseVoices.length; i++) {
-                                var voice = japaneseVoices[i];
-                                var name = voice.name.toLowerCase();
-                                // 男性を示すキーワードが含まれていない場合は女性音声と判断
-                                if (!name.includes('male') && 
-                                    !name.includes('男') && 
-                                    !name.includes('masculine') && 
-                                    !name.includes('man') && 
-                                    !name.includes('男性')) {
-                                    selectedVoice = voice;
-                                    break;
-                                }
-                            }
-                            
-                            // まだ見つからない場合は最後の音声を使用
-                            if (!selectedVoice) {
-                                selectedVoice = japaneseVoices[japaneseVoices.length - 1];
-                            }
-                        } else if (!selectedVoice && japaneseVoices.length === 1) {
-                            // 音声が1つしかない場合は、その音声を使用
-                            selectedVoice = japaneseVoices[0];
-                        }
-                    }
-                } else {
-                    // 日本語音声がない場合は、利用可能な最初の音声を使用
-                    selectedVoice = voices[0];
-                }
-                
-                if (selectedVoice) {
-                    utterance.voice = selectedVoice;
-                }
-                
-                // 進捗表示
-                $icon.find('.yomiagekun-tooltip').text('読み上げ中... (' + (self.currentChunkIndex + 1) + '/' + self.currentChunks.length + ') クリックで一時停止');
-                
-                utterance.onstart = function() {
-                    self.isPlaying = true;
-                    self.isPaused = false;
-                };
-                
-                utterance.onend = function() {
-                    self.currentChunkIndex++;
-                    setTimeout(speakNextChunk, 500); // 0.5秒の間隔
-                };
-                
-                utterance.onerror = function(event) {
-                    console.log('音声読み上げエラー:', event.error);
-                    self.showError($icon, '音声読み上げエラー: ' + event.error);
-                };
-                
-                // モバイルでは少し遅延を入れて音声を開始
-                if (isMobile) {
-                    setTimeout(function() {
-                        speechSynthesis.speak(utterance);
-                    }, 100);
-                } else {
-                    speechSynthesis.speak(utterance);
-                }
-            }
-            
-            speakNextChunk();
-        },
-        
-        splitTextIntoChunks: function(text, chunkSize) {
-            var chunks = [];
-            var sentences = text.split(/[。！？\n]/);
-            var currentChunk = '';
-            
-            for (var i = 0; i < sentences.length; i++) {
-                var sentence = sentences[i].trim();
-                if (sentence.length === 0) continue;
-                
-                // 現在のチャンクに文を追加した場合の長さを計算
-                var potentialLength = currentChunk.length + (currentChunk.length > 0 ? '。' : '') + sentence;
-                
-                if (potentialLength > chunkSize && currentChunk.length > 0) {
-                    // 現在のチャンクを保存して新しいチャンクを開始
-                    chunks.push(currentChunk.trim());
-                    currentChunk = sentence;
-                } else {
-                    // 現在のチャンクに文を追加
-                    currentChunk += (currentChunk.length > 0 ? '。' : '') + sentence;
-                }
-            }
-            
-            // 最後のチャンクを追加
-            if (currentChunk.trim().length > 0) {
-                chunks.push(currentChunk.trim());
-            }
-            
-            // デバッグ用：チャンク数をログ出力
-            console.log('読み上げくん: テキストを' + chunks.length + '個のチャンクに分割しました');
-            
-            return chunks;
-        },
-        
-        showError: function($icon, message) {
-            $icon.removeClass('reading completed').addClass('error');
-            $icon.find('.yomiagekun-tooltip').text(message).show();
-            
-            // 3秒後に元の状態に戻す
-            setTimeout(function() {
-                $icon.removeClass('error');
-                $icon.find('.yomiagekun-tooltip').text('もう一度お試しください').show();
-            }, 3000);
-        }
+
+    var cfg = window.yomiagekunConfig;
+    var synth = window.speechSynthesis;
+    if (!cfg || !cfg.postId) {
+        return;
+    }
+
+    var MODES = [
+        { key: 'simple', title: '簡略', desc: '短く要点だけ', ai: true },
+        { key: 'detailed', title: '詳細', desc: 'くわしく要約', ai: true },
+        { key: 'full', title: '完全', desc: '全文を読む', ai: false }
+    ];
+    var RATES = [0.8, 1, 1.25, 1.5];
+
+    // 1 回の発話の目安（日本語で 10 秒前後）。長い文は読点で切る
+    var CHUNK_CHARS = 100;
+
+    // 性別ごとの既知の日本語音声（名前の一部、小文字）。先にあるものを優先する
+    var VOICE_NAMES = {
+        female: ['nanami', 'kyoko', 'o-ren', 'haruka', 'ayumi', 'sayaka', 'aoi', 'mayu', 'shiori', 'google 日本語'],
+        male: ['keita', 'otoya', 'hattori', 'ichiro', 'daichi', 'naoki']
     };
-    
-    // DOM読み込み完了後に初期化
-    $(document).ready(function() {
-        console.log('読み上げくんプラグイン: 初期化開始');
-        YomiageKun.init();
-        console.log('読み上げくんプラグイン: 初期化完了');
-    });
-    
-    // 音声リストの読み込み待ち（一部のブラウザで必要）
-    if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = function() {
-            // 音声リストが更新された時の処理
-            console.log('音声リストが更新されました:', speechSynthesis.getVoices().length + '個の音声が利用可能');
-        };
-    }
-    
-    // 音声リストの読み込みを待つ関数
-    function waitForVoices(callback) {
-        var voices = speechSynthesis.getVoices();
-        if (voices.length > 0) {
-            callback(voices);
-        } else {
-            setTimeout(function() {
-                waitForVoices(callback);
-            }, 100);
+
+    var STORAGE_KEY = 'yomiagekun';
+
+    var state = 'idle'; // idle | loading | playing | paused
+    var runId = 0;       // 停止や作り直しで古い発話のイベントを無視するための番号
+    var queue = [];
+    var index = 0;
+    var textCache = {};
+    var errorTimer = null;
+
+    var hasAi = !!cfg.hasAi;
+    var saved = loadPrefs();
+    var mode = pickInitialMode(saved.mode || cfg.mode);
+    var rate = RATES.indexOf(saved.rate) !== -1 ? saved.rate : nearestRate(parseFloat(cfg.rate) || 1);
+
+    var el = {};
+
+    // ---- 設定の保存（プライベートブラウズ等で使えなくても動く） ----
+
+    function loadPrefs() {
+        try {
+            var raw = window.localStorage.getItem(STORAGE_KEY);
+            var data = raw ? JSON.parse(raw) : {};
+            return data && typeof data === 'object' ? data : {};
+        } catch (e) {
+            return {};
         }
     }
-    
-})(jQuery);
+
+    function savePrefs() {
+        try {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ mode: mode, rate: rate }));
+        } catch (e) {
+            // 保存できなくても読み上げには関係ない
+        }
+    }
+
+    function pickInitialMode(wanted) {
+        var found = MODES.filter(function(m) { return m.key === wanted && (hasAi || !m.ai); })[0];
+        return found ? found.key : 'full';
+    }
+
+    function nearestRate(value) {
+        return RATES.reduce(function(best, r) {
+            return Math.abs(r - value) < Math.abs(best - value) ? r : best;
+        }, RATES[0]);
+    }
+
+    // ---- 画面 ----
+
+    function h(tag, attrs, children) {
+        var node = document.createElement(tag);
+        Object.keys(attrs || {}).forEach(function(key) {
+            if (key === 'text') {
+                node.textContent = attrs[key];
+            } else {
+                node.setAttribute(key, attrs[key]);
+            }
+        });
+        (children || []).forEach(function(child) { node.appendChild(child); });
+        return node;
+    }
+
+    function build() {
+        var position = /^(top|middle|bottom)-(left|right)$/.test(cfg.position) ? cfg.position : 'bottom-right';
+
+        var iconChild = cfg.iconUrl
+            ? h('img', { src: cfg.iconUrl, alt: '' })
+            : h('span', { 'class': 'yomiagekun-default-icon', 'aria-hidden': 'true', text: '📢' });
+
+        el.toggle = h('button', {
+            type: 'button',
+            'class': 'yomiagekun-toggle',
+            'aria-expanded': 'false',
+            'aria-controls': 'yomiagekun-panel',
+            'aria-label': '読み上げくん（この記事を音声で聞く）',
+            title: '読み上げましょうか？'
+        }, [iconChild]);
+
+        el.modeButtons = MODES.filter(function(m) { return hasAi || !m.ai; }).map(function(m) {
+            var btn = h('button', { type: 'button', 'class': 'yomiagekun-mode', 'data-mode': m.key, 'aria-pressed': 'false' }, [
+                h('span', { 'class': 'yomiagekun-mode__title', text: m.title }),
+                h('span', { 'class': 'yomiagekun-mode__desc', text: m.desc })
+            ]);
+            btn.addEventListener('click', function() { selectMode(m.key); });
+            return btn;
+        });
+
+        el.rateButtons = RATES.map(function(r) {
+            var btn = h('button', { type: 'button', 'class': 'yomiagekun-rate', 'aria-pressed': 'false', 'aria-label': '速さ ' + r + '倍', text: r + '×' });
+            btn.addEventListener('click', function() { selectRate(r); });
+            return btn;
+        });
+
+        el.play = h('button', { type: 'button', 'class': 'yomiagekun-play' });
+        el.play.addEventListener('click', onPlay);
+
+        el.stop = h('button', { type: 'button', 'class': 'yomiagekun-stop', text: '■ 停止' });
+        el.stop.addEventListener('click', stop);
+
+        el.status = h('p', { 'class': 'yomiagekun-status', role: 'status', 'aria-live': 'polite' });
+
+        el.panel = h('div', { id: 'yomiagekun-panel', 'class': 'yomiagekun-panel', role: 'group', 'aria-label': '読み上げの操作', hidden: '' }, [
+            h('p', { 'class': 'yomiagekun-heading', text: '読み方' }),
+            h('div', { 'class': 'yomiagekun-modes' }, el.modeButtons),
+            h('div', { 'class': 'yomiagekun-controls' }, [el.play, el.stop]),
+            h('div', { 'class': 'yomiagekun-rates' }, [h('span', { 'class': 'yomiagekun-heading', text: '速さ' })].concat(el.rateButtons)),
+            el.status
+        ]);
+
+        el.root = h('div', { 'class': 'yomiagekun yomiagekun--' + position }, [el.panel, el.toggle]);
+        document.body.appendChild(el.root);
+
+        el.toggle.addEventListener('click', function() { setPanelOpen(el.panel.hidden); });
+
+        document.addEventListener('click', function(e) {
+            if (!el.panel.hidden && !el.root.contains(e.target)) {
+                setPanelOpen(false);
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !el.panel.hidden) {
+                setPanelOpen(false);
+                el.toggle.focus();
+            }
+        });
+
+        render();
+    }
+
+    function setPanelOpen(open) {
+        el.panel.hidden = !open;
+        el.toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        el.root.classList.toggle('is-open', open);
+    }
+
+    function render() {
+        el.root.classList.toggle('is-loading', state === 'loading');
+        el.root.classList.toggle('is-playing', state === 'playing');
+        el.root.classList.toggle('is-paused', state === 'paused');
+
+        el.modeButtons.forEach(function(btn) {
+            btn.setAttribute('aria-pressed', btn.getAttribute('data-mode') === mode ? 'true' : 'false');
+        });
+        el.rateButtons.forEach(function(btn, i) {
+            btn.setAttribute('aria-pressed', RATES[i] === rate ? 'true' : 'false');
+        });
+
+        var label = { idle: '▶ 読み上げる', loading: '準備中…', playing: 'Ⅱ 一時停止', paused: '▶ 続きから' }[state];
+        el.play.textContent = label;
+        el.play.disabled = state === 'loading';
+        el.stop.disabled = state === 'idle';
+    }
+
+    // Chrome は一時停止中に cancel() すると、次の speak() も止まったままになる
+    function cancelSpeech() {
+        if (!synth) {
+            return;
+        }
+        if (synth.paused) {
+            synth.resume();
+        }
+        synth.cancel();
+    }
+
+    function setStatus(text) {
+        el.status.textContent = text;
+    }
+
+    function showError(message) {
+        runId++;
+        cancelSpeech();
+        state = 'idle';
+        queue = [];
+        index = 0;
+        render();
+        setStatus(message);
+        el.root.classList.add('is-error');
+        clearTimeout(errorTimer);
+        errorTimer = setTimeout(function() { el.root.classList.remove('is-error'); }, 3000);
+    }
+
+    // ---- 操作 ----
+
+    function onPlay() {
+        if (state === 'playing') {
+            synth.pause();
+            state = 'paused';
+            setStatus('一時停止中');
+            render();
+        } else if (state === 'paused') {
+            synth.resume();
+            state = 'playing';
+            setStatus(progressText());
+            render();
+        } else if (state === 'idle') {
+            start();
+        }
+    }
+
+    function selectMode(key) {
+        if (key === mode && state !== 'idle') {
+            return;
+        }
+        mode = key;
+        savePrefs();
+        if (state === 'idle') {
+            render();
+        } else {
+            // 読み上げ中に切り替えたら、新しい読み方で最初から
+            stop();
+            start();
+        }
+    }
+
+    function selectRate(r) {
+        rate = r;
+        savePrefs();
+        render();
+        // 読み上げ中なら今の区切りから新しい速さで読み直す
+        if (state === 'playing' || state === 'paused') {
+            runId++;
+            cancelSpeech();
+            state = 'playing';
+            render();
+            speakCurrent();
+        }
+    }
+
+    function stop() {
+        runId++;
+        cancelSpeech();
+        state = 'idle';
+        queue = [];
+        index = 0;
+        setStatus('');
+        render();
+    }
+
+    function start() {
+        if (!synth || typeof window.SpeechSynthesisUtterance === 'undefined') {
+            showError('お使いのブラウザは音声の読み上げに対応していません。');
+            return;
+        }
+
+        // iPhone/iPad は操作の中で一度 speak() しないと、通信の後で音が出ない
+        cancelSpeech();
+        var unlock = new SpeechSynthesisUtterance(' ');
+        unlock.volume = 0;
+        synth.speak(unlock);
+
+        var myRun = ++runId;
+        state = 'loading';
+        setStatus(mode === 'full' ? '本文を読み込み中…' : '要約を作成中…（少し時間がかかります）');
+        render();
+
+        Promise.all([fetchText(mode), waitForVoices()]).then(function(results) {
+            if (myRun !== runId) {
+                return;
+            }
+            queue = splitIntoChunks(results[0]);
+            index = 0;
+            if (!queue.length) {
+                showError('読み上げる文章がありませんでした。');
+                return;
+            }
+            state = 'playing';
+            render();
+            speakCurrent();
+        }).catch(function(err) {
+            if (myRun === runId) {
+                showError(err && err.message ? err.message : '通信エラーが発生しました。');
+            }
+        });
+    }
+
+    function progressText() {
+        return '読み上げ中（' + (index + 1) + ' / ' + queue.length + '）';
+    }
+
+    function speakCurrent() {
+        if (index >= queue.length) {
+            stop();
+            setStatus('最後まで読み上げました。');
+            return;
+        }
+
+        var myRun = runId;
+        var utterance = new SpeechSynthesisUtterance(queue[index]);
+        utterance.lang = 'ja-JP';
+        utterance.rate = rate;
+        var voice = pickVoice(cfg.gender);
+        if (voice) {
+            utterance.voice = voice;
+        }
+
+        utterance.onend = function() {
+            if (myRun !== runId) {
+                return;
+            }
+            index++;
+            speakCurrent();
+        };
+        utterance.onerror = function(event) {
+            // cancel() で止めたときの interrupted/canceled はエラーではない
+            if (myRun !== runId || event.error === 'interrupted' || event.error === 'canceled') {
+                return;
+            }
+            showError('音声の読み上げに失敗しました（' + event.error + '）。');
+        };
+
+        setStatus(progressText());
+        synth.speak(utterance);
+    }
+
+    // ---- 本文の取得と分割 ----
+
+    function fetchText(key) {
+        if (textCache[key]) {
+            return Promise.resolve(textCache[key]);
+        }
+
+        var body = new FormData();
+        body.append('action', 'yomiagekun_summarize');
+        body.append('post_id', cfg.postId);
+        body.append('accuracy', key);
+
+        return fetch(cfg.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' })
+            .then(function(res) {
+                return res.json().catch(function() { return null; });
+            })
+            .then(function(json) {
+                if (json && json.success && json.data && json.data.text) {
+                    textCache[key] = json.data.text;
+                    return json.data.text;
+                }
+                var message = json && json.data && json.data.message ? json.data.message : '文章を取得できませんでした。';
+                throw new Error(message);
+            });
+    }
+
+    function splitIntoChunks(text) {
+        // 句点・感嘆符・疑問符・改行の後ろで切る（記号は文に残す）
+        // 古い iOS Safari は後読み (?<=) を解釈できないので、区切り記号の後ろに改行を足してから分ける
+        var sentences = String(text).replace(/([。！？!?])/g, '$1\n').split(/\n+/).map(function(s) {
+            return s.trim();
+        }).filter(Boolean);
+
+        var chunks = [];
+        var current = '';
+
+        sentences.forEach(function(sentence) {
+            // 1 文が長すぎるときは読点で分ける
+            var parts = sentence.length > CHUNK_CHARS ? splitLongSentence(sentence) : [sentence];
+            parts.forEach(function(part) {
+                if (current && current.length + part.length > CHUNK_CHARS) {
+                    chunks.push(current);
+                    current = '';
+                }
+                current += part;
+            });
+        });
+        if (current) {
+            chunks.push(current);
+        }
+        return chunks;
+    }
+
+    function splitLongSentence(sentence) {
+        var parts = [];
+        var current = '';
+        sentence.replace(/([、，,])/g, '$1\n').split('\n').forEach(function(piece) {
+            while (piece.length > CHUNK_CHARS) {
+                // 読点が無い長い塊は文字数で切る
+                parts.push(piece.slice(0, CHUNK_CHARS));
+                piece = piece.slice(CHUNK_CHARS);
+            }
+            if (current && current.length + piece.length > CHUNK_CHARS) {
+                parts.push(current);
+                current = '';
+            }
+            current += piece;
+        });
+        if (current) {
+            parts.push(current);
+        }
+        return parts;
+    }
+
+    // ---- 音声 ----
+
+    function waitForVoices() {
+        return new Promise(function(resolve) {
+            if (synth.getVoices().length) {
+                resolve();
+                return;
+            }
+            var done = false;
+            function finish() {
+                if (!done) {
+                    done = true;
+                    resolve();
+                }
+            }
+            synth.addEventListener('voiceschanged', finish);
+            // 一覧が来ない端末でも既定の声で読めるので、待つのは最大 1.5 秒
+            setTimeout(finish, 1500);
+        });
+    }
+
+    function pickVoice(gender) {
+        var voices = synth.getVoices().filter(function(v) {
+            return /^ja[-_]?/i.test(v.lang);
+        });
+        if (!voices.length) {
+            return null;
+        }
+
+        var wanted = VOICE_NAMES[gender === 'male' ? 'male' : 'female'];
+        var other = VOICE_NAMES[gender === 'male' ? 'female' : 'male'];
+
+        for (var i = 0; i < wanted.length; i++) {
+            for (var j = 0; j < voices.length; j++) {
+                if (voices[j].name.toLowerCase().indexOf(wanted[i]) !== -1) {
+                    return voices[j];
+                }
+            }
+        }
+
+        // 名前で分からなければ、反対の性別と分かっている声を避けて先頭を使う
+        var neutral = voices.filter(function(v) {
+            var name = v.name.toLowerCase();
+            return !other.some(function(n) { return name.indexOf(n) !== -1; });
+        });
+        return neutral[0] || voices[0];
+    }
+
+    // ---- 起動 ----
+
+    function init() {
+        build();
+        if (synth) {
+            // 一覧の読み込みを先に始めておく（Chrome は最初の呼び出しで空を返す）
+            synth.getVoices();
+            window.addEventListener('pagehide', cancelSpeech);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();

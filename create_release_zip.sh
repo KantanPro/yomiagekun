@@ -50,6 +50,7 @@ echo "プラグインファイルをコピー中..."
 # 必要なファイルのみをコピー（配布に必要な最小構成）
 # メインファイル
 cp "yomiagekun.php" "$PLUGIN_COPY_DIR/"
+cp "uninstall.php" "$PLUGIN_COPY_DIR/"
 
 # assetsディレクトリ
 if [ -d "assets" ]; then

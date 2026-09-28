@@ -1,7 +1,7 @@
 <?php
 /**
  * GitHub Updater for 読み上げくん
- * WordPress標準の更新通知機能をGitHubに対応させる
+ * WordPress標準の更新通知機能をGitHubのリリースに対応させる
  */
 
 if (!defined('ABSPATH')) {
@@ -9,129 +9,127 @@ if (!defined('ABSPATH')) {
 }
 
 class YomiageKun_GitHub_Updater {
-    
-    private $plugin_slug;
+
+    private $plugin_file;
+    private $basename;   // yomiagekun/yomiagekun.php
+    private $slug;       // yomiagekun
+    private $repo;       // KantanPro/yomiagekun
     private $version;
-    private $cache_key;
-    private $cache_allowed;
-    
-    public function __construct() {
-        $this->plugin_slug = plugin_basename(__FILE__);
+    private $cache_key = 'yomiagekun_updater';
+
+    public function __construct($plugin_file, $repo) {
+        $this->plugin_file = $plugin_file;
+        $this->basename = plugin_basename($plugin_file);
+        $this->slug = dirname($this->basename);
+        $this->repo = $repo;
         $this->version = YOMIAGEKUN_VERSION;
-        $this->cache_key = 'yomiagekun_updater';
-        $this->cache_allowed = false;
-        
+
         add_filter('pre_set_site_transient_update_plugins', array($this, 'modify_transient'), 10, 1);
         add_filter('plugins_api', array($this, 'plugin_popup'), 10, 3);
         add_filter('upgrader_post_install', array($this, 'after_install'), 10, 3);
     }
-    
+
+    /**
+     * 最新リリースの情報。失敗も 12 時間覚えておき、GitHub API を叩き続けない
+     */
     public function request() {
-        $remote = get_transient($this->cache_key);
-        
-        if (false === $remote || $this->cache_allowed) {
-            $remote = wp_remote_get(
-                'https://api.github.com/repos/your-username/yomiagekun/releases/latest',
-                array(
-                    'timeout' => 10,
-                    'headers' => array(
-                        'Accept' => 'application/vnd.github.v3+json',
-                    )
+        $cached = get_transient($this->cache_key);
+        if (false !== $cached) {
+            return $cached === 'none' ? false : $cached;
+        }
+
+        $response = wp_remote_get(
+            'https://api.github.com/repos/' . $this->repo . '/releases/latest',
+            array(
+                'timeout' => 10,
+                'headers' => array(
+                    'Accept' => 'application/vnd.github.v3+json',
                 )
-            );
-            
-            if (is_wp_error($remote)) {
-                return false;
-            }
-            
-            $remote = wp_remote_retrieve_body($remote);
-            $remote = json_decode($remote);
-            
-            if (empty($remote) || isset($remote->message)) {
-                return false;
-            }
-            
-            $res = new stdClass();
-            $res->name = $remote->name;
-            $res->slug = $this->plugin_slug;
-            $res->version = $remote->tag_name;
-            $res->tested = $remote->target_commitish;
-            $res->requires = '5.0';
-            $res->author = 'Your Name';
-            $res->author_profile = 'https://github.com/your-username';
-            $res->homepage = $remote->html_url;
-            $res->trunk = $remote->zipball_url;
-            $res->private = false;
-            $res->requires_php = '7.4';
-            $res->last_updated = $remote->published_at;
-            $res->sections = array(
-                'description' => 'ブログの内容をAIが要約して読み上げてくれるアクセシビリティプラグイン',
-                'installation' => 'プラグインを有効化するだけで使用できます。',
-                'changelog' => $remote->body,
-            );
-            
-            if (!empty($remote->assets[0])) {
-                $res->download_link = $remote->assets[0]->browser_download_url;
-            } else {
-                $res->download_link = $remote->zipball_url;
-            }
-            
-            set_transient($this->cache_key, $res, 43200); // 12時間キャッシュ
+            )
+        );
+
+        $remote = is_wp_error($response) ? null : json_decode(wp_remote_retrieve_body($response));
+        if (empty($remote) || empty($remote->tag_name)) {
+            set_transient($this->cache_key, 'none', 43200);
+            return false;
         }
-        
-        return $res;
-    }
-    
-    public function modify_transient($transient) {
-        if (empty($transient->checked)) {
-            return $transient;
-        }
-        
-        $remote = $this->request();
-        
-        if ($remote && version_compare($this->version, $remote->version, '<')) {
-            $res = new stdClass();
-            $res->slug = $this->plugin_slug;
-            $res->plugin = plugin_basename(__FILE__);
-            $res->new_version = $remote->version;
-            $res->tested = $remote->tested;
-            $res->package = $remote->download_link;
-            
-            $transient->response[$res->plugin] = $res;
-        }
-        
-        return $transient;
-    }
-    
-    public function plugin_popup($result, $action, $args) {
-        if (!empty($args->slug)) {
-            if ($args->slug == current(explode('/', $this->plugin_slug))) {
-                $remote = $this->request();
-                
-                if ($remote) {
-                    $result = $remote;
+
+        $res = new stdClass();
+        $res->name = '読み上げくん';
+        $res->slug = $this->slug;
+        $res->version = ltrim($remote->tag_name, 'vV');
+        $res->requires = '5.0';
+        $res->requires_php = '7.4';
+        $res->author = 'KantanPro';
+        $res->homepage = $remote->html_url;
+        $res->last_updated = $remote->published_at;
+        $res->sections = array(
+            'description' => 'ブログの内容をAIが要約して読み上げてくれるアクセシビリティプラグイン',
+            'changelog' => nl2br(esc_html((string) $remote->body)),
+        );
+
+        // リリースに添付した ZIP（中身が yomiagekun/ フォルダ）を優先する
+        $res->download_link = $remote->zipball_url;
+        if (!empty($remote->assets)) {
+            foreach ($remote->assets as $asset) {
+                if (substr($asset->name, -4) === '.zip') {
+                    $res->download_link = $asset->browser_download_url;
+                    break;
                 }
             }
         }
-        
-        return $result;
+
+        set_transient($this->cache_key, $res, 43200); // 12時間キャッシュ
+
+        return $res;
     }
-    
+
+    public function modify_transient($transient) {
+        if (!is_object($transient) || empty($transient->checked)) {
+            return $transient;
+        }
+
+        $remote = $this->request();
+
+        if ($remote && version_compare($this->version, $remote->version, '<')) {
+            $res = new stdClass();
+            $res->slug = $this->slug;
+            $res->plugin = $this->basename;
+            $res->new_version = $remote->version;
+            $res->url = $remote->homepage;
+            $res->package = $remote->download_link;
+
+            $transient->response[$this->basename] = $res;
+        }
+
+        return $transient;
+    }
+
+    public function plugin_popup($result, $action, $args) {
+        if ($action !== 'plugin_information' || empty($args->slug) || $args->slug !== $this->slug) {
+            return $result;
+        }
+
+        $remote = $this->request();
+        return $remote ? $remote : $result;
+    }
+
+    /**
+     * zipball のようにフォルダ名が違う ZIP でも、yomiagekun/ に入れ直す
+     */
     public function after_install($response, $hook_extra, $result) {
         global $wp_filesystem;
-        
-        $install_directory = plugin_dir_path(__FILE__);
-        $wp_filesystem->move($result['destination'], $install_directory);
-        $result['destination'] = $install_directory;
-        
-        if (is_plugin_active(plugin_basename(__FILE__))) {
-            deactivate_plugins(plugin_basename(__FILE__));
-            activate_plugin(plugin_basename(__FILE__));
+
+        if (empty($hook_extra['plugin']) || $hook_extra['plugin'] !== $this->basename) {
+            return $response;
         }
-        
+
+        $install_directory = trailingslashit(WP_PLUGIN_DIR) . $this->slug;
+        if (untrailingslashit($result['destination']) !== $install_directory) {
+            $wp_filesystem->move($result['destination'], $install_directory, true);
+            $result['destination'] = $install_directory;
+        }
+
         return $result;
     }
 }
-
-// GitHub Updaterを初期化
-new YomiageKun_GitHub_Updater();
