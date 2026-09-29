@@ -37,6 +37,7 @@
     var queue = [];
     var index = 0;
     var textCache = {};
+    var textPending = {};
     var errorTimer = null;
 
     var hasAi = !!cfg.hasAi;
@@ -164,6 +165,19 @@
         el.panel.hidden = !open;
         el.toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         el.root.classList.toggle('is-open', open);
+        if (open) {
+            prefetch();
+        }
+    }
+
+    // iPhone/iPad は「押してから約 1 秒以内」の speak() しか音にしない。
+    // 全文は AI を使わず安いので、パネルを開いた時点で取っておき、押したらその場で読めるようにする
+    function prefetch() {
+        if (mode === 'full') {
+            fetchText('full').catch(function() {
+                // 失敗しても再生ボタンを押したときにもう一度取りに行く
+            });
+        }
     }
 
     function render() {
@@ -238,6 +252,7 @@
         savePrefs();
         if (state === 'idle') {
             render();
+            prefetch();
         } else {
             // 読み上げ中に切り替えたら、新しい読み方で最初から
             stop();
@@ -275,13 +290,20 @@
             return;
         }
 
-        // iPhone/iPad は操作の中で一度 speak() しないと、通信の後で音が出ない
         cancelSpeech();
-        var unlock = new SpeechSynthesisUtterance(' ');
-        unlock.volume = 0;
-        synth.speak(unlock);
-
         var myRun = ++runId;
+
+        // 取得済みなら、押した操作の中でそのまま読み始める（iPhone/iPad で確実に音が出る）
+        if (textCache[mode]) {
+            begin(textCache[mode]);
+            return;
+        }
+
+        // iPhone/iPad は押してから約 1 秒を過ぎた speak() を無音にする。通信が遅いサイトで黙るので、
+        // 押した操作の中で実際に声を出して読み上げを始めておく（空白や音量 0 の発話では許可されない）
+        var notice = makeUtterance(mode === 'full' ? '本文を読み込んでいます。' : '要約を作成しています。少しお待ちください。');
+        synth.speak(notice);
+
         state = 'loading';
         setStatus(mode === 'full' ? '本文を読み込み中…' : '要約を作成中…（少し時間がかかります）');
         render();
@@ -290,20 +312,35 @@
             if (myRun !== runId) {
                 return;
             }
-            queue = splitIntoChunks(results[0]);
-            index = 0;
-            if (!queue.length) {
-                showError('読み上げる文章がありませんでした。');
-                return;
-            }
-            state = 'playing';
-            render();
-            speakCurrent();
+            begin(results[0]);
         }).catch(function(err) {
             if (myRun === runId) {
                 showError(err && err.message ? err.message : '通信エラーが発生しました。');
             }
         });
+    }
+
+    function begin(text) {
+        queue = splitIntoChunks(text);
+        index = 0;
+        if (!queue.length) {
+            showError('読み上げる文章がありませんでした。');
+            return;
+        }
+        state = 'playing';
+        render();
+        speakCurrent();
+    }
+
+    function makeUtterance(text) {
+        var utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ja-JP';
+        utterance.rate = rate;
+        var voice = pickVoice(cfg.gender);
+        if (voice) {
+            utterance.voice = voice;
+        }
+        return utterance;
     }
 
     function progressText() {
@@ -318,13 +355,7 @@
         }
 
         var myRun = runId;
-        var utterance = new SpeechSynthesisUtterance(queue[index]);
-        utterance.lang = 'ja-JP';
-        utterance.rate = rate;
-        var voice = pickVoice(cfg.gender);
-        if (voice) {
-            utterance.voice = voice;
-        }
+        var utterance = makeUtterance(queue[index]);
 
         utterance.onend = function() {
             if (myRun !== runId) {
@@ -351,24 +382,33 @@
         if (textCache[key]) {
             return Promise.resolve(textCache[key]);
         }
+        // 先読み中なら同じ通信を待つ（二重に取りに行かない）
+        if (textPending[key]) {
+            return textPending[key];
+        }
 
         var body = new FormData();
         body.append('action', 'yomiagekun_summarize');
         body.append('post_id', cfg.postId);
         body.append('accuracy', key);
 
-        return fetch(cfg.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' })
+        textPending[key] = fetch(cfg.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' })
             .then(function(res) {
                 return res.json().catch(function() { return null; });
             })
             .then(function(json) {
+                delete textPending[key];
                 if (json && json.success && json.data && json.data.text) {
                     textCache[key] = json.data.text;
                     return json.data.text;
                 }
                 var message = json && json.data && json.data.message ? json.data.message : '文章を取得できませんでした。';
                 throw new Error(message);
+            }, function(err) {
+                delete textPending[key];
+                throw err;
             });
+        return textPending[key];
     }
 
     function splitIntoChunks(text) {

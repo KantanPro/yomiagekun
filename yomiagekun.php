@@ -3,7 +3,7 @@
  * Plugin Name: 読み上げくん
  * Plugin URI: https://github.com/KantanPro/yomiagekun
  * Description: ブログの内容をAIが要約して読み上げてくれるアクセシビリティプラグイン
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: KantanPro
  * Author URI: https://www.kantanpro.com/
  * License: GPL v2 or later
@@ -23,7 +23,7 @@ if (!defined('ABSPATH')) {
 }
 
 // プラグインの定数定義
-define('YOMIAGEKUN_VERSION', '1.1.1');
+define('YOMIAGEKUN_VERSION', '1.1.2');
 define('YOMIAGEKUN_PLUGIN_FILE', __FILE__);
 define('YOMIAGEKUN_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('YOMIAGEKUN_PLUGIN_PATH', plugin_dir_path(__FILE__));

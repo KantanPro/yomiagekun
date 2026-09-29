@@ -4,7 +4,7 @@ Tags: accessibility, text-to-speech, ai, summary, japanese
 Requires at least: 5.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,10 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 3. 要約結果表示
 
 == Changelog ==
+
+= 1.1.2 =
+* iPhone/iPad で、本文の取得に時間がかかるサイトだと読み上げが始まらない問題を修正
+* 操作パネルを開いた時点で全文を先に読み込み、再生ボタンを押したらすぐ読み始めるようにした
 
 = 1.1.1 =
 * 要約に失敗したとき、Cloudflare 配下のサイトでエラーメッセージが届かなかった問題を修正
